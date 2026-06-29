@@ -1,3 +1,6 @@
+/**
+ * @Author Osetrov.V.V.
+ */
 package com.rosseti.cardata
 
 import android.Manifest
@@ -30,8 +33,7 @@ import com.rosseti.cardata.model.NumericField
 import com.rosseti.cardata.ui.theme.CarDataTheme
 
 /**
- * это входная точка вашего приложения и его «лицо». Если MainViewModel — это мозг,
- * то MainActivity — это органы чувств (GPS, нажатия на экран) и внешность (интерфейс).
+ * Функция предварительного просмотра основного содержимого экрана местоположения.
  */
 @Preview(showBackground = true)
 @Composable
@@ -50,12 +52,22 @@ fun PreviewMainLocationContent() {
     }
 }
 
+/**
+ * Основное действие приложения.
+ * Управление службами отслеживания пользовательского интерфейса, жизненного цикла и местоположения.
+ *
+ * @property fusedLocationClient Client для взаимодействия с поставщиком интегрированного местоположения.
+ * @property locationCallback Callback для получения обновлений местоположения.
+ * @property lastLocation Сохраняет последнее известное местоположение для расчета расстояния.
+ */
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private var lastLocation: Location? = null
 
-    // ViewModel с инъекцией репозитория
+    /**
+     * ViewModel для основного экрана, инициализированного [SettingsRepository].
+     */
     private val viewModel: MainViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -64,6 +76,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Средство запуска для запроса разрешений на местоположение.
+     */
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -101,6 +116,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Настройка логики обратного вызова по местоположению.
+     * Вычисляет расстояние, пройденное между обновлениями местоположения и обновлением ViewModel.
+     */
     private fun setupLocationTracking() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
@@ -114,6 +133,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Начало получения обновлений местоположения с указанными параметрами.
+     */
     @SuppressLint("MissingPermission")
     fun startLocationUpdates() {
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
@@ -134,11 +156,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Основной экран компоновочный, соединяющий ViewModel и содержимое интерфейса.
+ *
+ * @param viewModel The ViewModel, предоставляющий управляющие состоянием и событиями.
+ */
 @Composable
 fun MainLocationScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     
-    // UI просто наблюдает за состоянием из ViewModel
     MainLocationContent(
         fields = viewModel.fields,
         onFieldChange = viewModel::onFieldChange,
@@ -155,6 +181,14 @@ fun MainLocationScreen(viewModel: MainViewModel) {
     )
 }
 
+/**
+ * Содержимое пользовательского интерфейса, составляемое для главного экрана местоположения.
+ *
+ * @param fields Список числовых полей для отображения.
+ * @param onFieldChange Callback для изменения значения поля.
+ * @param onStartClick Callback для нажатия кнопки «Start».
+ * @param onStopClick Callback для того, чтобы отменить нажатие на кнопку «Остановить».
+ */
 @SuppressLint("DefaultLocale")
 @Composable
 fun MainLocationContent(
@@ -202,9 +236,10 @@ fun MainLocationContent(
         Spacer(modifier = Modifier.weight(1f))
         
         Text(
-            text = "© 2026 Rosseti-Ural. Осетров.В.В.\nВсе права защищены.",
+            text = "Разработано: Осетров В.В.\n© 2026 Rosseti-Ural. Все права защищены.",
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.outline,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )

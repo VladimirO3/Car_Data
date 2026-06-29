@@ -12,6 +12,18 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.atLeastOnce
 
+/**
+ * Единичные тесты для класса [MainViewModel].
+ *
+ * Этот тестовый пакет проверяет бизнес-логику MainViewModel, включая:
+ * - Инициализация и загрузка постоянных данных из [SettingsRepository].
+ * - Управление жизненным циклом поездки (начало и остановка поездок).
+ * - Отслеживание расстояния и условные обновления на основе статуса поездки.
+ * - Обновления динамических полей и их синхронизация с репозиторием.
+ * - Расчет расхода топлива и конечного пробега по завершении поездки.
+ *
+ * Он использует Mockito для инъекции зависимостей и насмешки над слоем репозитория.
+ */
 class MainViewModelTest {
 
     @Mock
@@ -22,8 +34,8 @@ class MainViewModelTest {
     @Before
     fun setup() {
         MockitoAnnotations.openMocks(this)
-        
-        // Default mock behavior
+
+        // Стандартное имитационное поведение
         `when`(repository.getFieldValue(any())).thenReturn(0f)
         `when`(repository.getTotalDistance()).thenReturn(0f)
         
@@ -73,14 +85,14 @@ class MainViewModelTest {
 
     @Test
     fun `onStopTrip resets totalDistance and saves final values`() {
-        // Setup initial state
+        // Настройка начального состояния
         `when`(repository.getFieldValue("km")).thenReturn(100f)
         `when`(repository.getFieldValue("fuel")).thenReturn(50f)
         `when`(repository.getFieldValue("fuelStandart")).thenReturn(10f)
         viewModel = MainViewModel(repository)
         
         viewModel.onStartTrip()
-        viewModel.addDistance(10000f) // 10 km, should consume 1 liter (10 * 10 / 100)
+        viewModel.addDistance(10000f) // 10 км, должно потреблять 1 литр (10 * 10 / 100)
         
         viewModel.onStopTrip()
         

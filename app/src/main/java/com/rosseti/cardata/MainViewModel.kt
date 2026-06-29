@@ -1,3 +1,6 @@
+/**
+ * @Author Osetrov.V.V.
+ */
 package com.rosseti.cardata
 
 import androidx.compose.runtime.mutableFloatStateOf
@@ -7,19 +10,32 @@ import androidx.lifecycle.ViewModel
 import com.rosseti.cardata.data.SettingsRepository
 import com.rosseti.cardata.model.NumericField
 import java.util.Locale
-/** Она отвечает за логику работы с данными и хранит состояние экрана,
-чтобы оно не пропадало при повороте телефона или переключении между приложениями.
-**/
+
+/**
+ * ViewModel для главного экрана приложения.
+ * Обрабатывает логику данных, постоянство состояния и вычисления расстояний.
+ *
+ * @property repository Репозиторий, используемый для сохранения данных.
+ */
 class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
-    
-    // Область пользовательского интерфейса
-    var totalDistance = mutableFloatStateOf(0f) // Текущее расстояние прохода в метрах
+
+    /**
+     * Общее расстояние, пройденное в текущей поездке, в метрах.
+     */
+    var totalDistance = mutableFloatStateOf(0f)
         private set
-    
+
+    /**
+     * Флажок, указывающий на активность поездки.
+     */
     var isTripStarted = mutableStateOf(false)
         private set
 
+    /**
+     * Список числовых полей, представляющих различные точки данных (например, пробег, топливо).
+     */
     val fields = mutableStateListOf<NumericField>()
+    
     private var baseKm: Float = 0f
     private var baseFuel: Float = 0f
 
@@ -27,6 +43,10 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         loadFields()
     }
 
+    /**
+     * Загружает сохраненные значения полей и общее расстояние от репозитория.
+     * Инициализирует поля пользовательского интерфейса на основе загруженных данных.
+     */
     private fun loadFields() {
         fields.clear()
         baseKm = repository.getFieldValue("km")
@@ -47,12 +67,18 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         fields.add(NumericField("fuel", "Остаток топлива", if (remainingFuel == 0f) "" else String.format(Locale.US, "%.2f", remainingFuel)))
         fields.add(NumericField("fuelStandart", "Норма расхода топлива", if (fuelStd == 0f) "" else String.format(Locale.US, "%.2f", fuelStd)))
         
-        // Если у нас сохранено расстояние поездки > 0, мы предполагаем, что поездка была активной.
         if (savedTripDistance > 0f) {
             isTripStarted.value = true
         }
     }
 
+    /**
+     * Обрабатывает изменения значения числового поля.
+     * Проверяет входные данные и обновляет состояние и репозиторий.
+     *
+     * @param index Индекс поля в списке [fields].
+     * @param input Новое значение строки, введенное пользователем.
+     */
     fun onFieldChange(index: Int, input: String) {
         if (index !in fields.indices) return
 
@@ -67,8 +93,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
             
             val floatValue = formattedInput.toFloatOrNull() ?: 0f
             
-            // Если пользователь вручную изменяет базовые значения, мы сбрасываем счетчик запуска.
-            // чтобы избежать путаницы в общем количестве.
             if (field.id == "km") {
                 baseKm = floatValue
                 totalDistance.floatValue = 0f
@@ -81,6 +105,12 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         }
     }
 
+    /**
+     * Добавляет указанное расстояние к общему расстоянию поездки.
+     * Обновление полей интерфейса на основе нового общего расстояния и расхода топлива.
+     *
+     * @param distanceMeters Расстояние, пройденное в метрах.
+     */
     fun addDistance(distanceMeters: Float) {
         if (!isTripStarted.value) return
         
@@ -102,17 +132,22 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         }
     }
 
+    /**
+     * Начинает новую поездку.
+     * Устанавливает начальные базовые значения для пробега и топлива.
+     */
     fun onStartTrip() {
         isTripStarted.value = true
-        // Если мы начинаем новую поездку, что текущие значения отображения являются основой.
         baseKm = fields.getOrNull(0)?.value?.toFloatOrNull() ?: 0f
         baseFuel = fields.getOrNull(1)?.value?.toFloatOrNull() ?: 0f
         repository.saveFieldValue("km", baseKm)
         repository.saveFieldValue("fuel", baseFuel)
-        
-        // Сбросить расстояние между поездками, если это совершенно новый старт
     }
 
+    /**
+     * Останавливает текущую поездку.
+     * Сбрасывает расстояние поездки и сохраняет итоговые пробег и топливные значения в качестве новой базы.
+     */
     fun onStopTrip() {
         val traveledKm = totalDistance.floatValue / 1000f
         val fuelStd = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
@@ -121,20 +156,16 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val finalKm = baseKm + traveledKm
         val remainingFuel = (baseFuel - fuelConsumed).coerceAtLeast(0f)
 
-        // Сохранить окончательные значения в качестве новой основы для СЛЕДУЮЩЕЙ поездки
         repository.saveFieldValue("km", finalKm)
         repository.saveFieldValue("fuel", remainingFuel)
         
-        // Обновление местных базовых переменных
         baseKm = finalKm
         baseFuel = remainingFuel
 
-        // Сбросить счетчик отключения
         totalDistance.floatValue = 0f
         repository.saveTotalDistance(0f)
         isTripStarted.value = false
 
-        // Sync UI fields
         fields[0] = fields[0].copy(value = String.format(Locale.US, "%.2f", finalKm))
         fields[1] = fields[1].copy(value = String.format(Locale.US, "%.2f", remainingFuel))
     }
