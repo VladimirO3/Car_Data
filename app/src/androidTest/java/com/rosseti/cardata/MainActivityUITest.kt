@@ -22,19 +22,19 @@ class MainActivityUITest {
 
     @Test
     fun testStartTripShowsToast() {
-        // Find the "Поехали" button and click it
+        // Найдите кнопку «Поехали» и нажмите на неё
         composeTestRule.onNodeWithText("Поехали").performClick()
         
-        // Note: Toast verification is tricky in basic Compose tests, 
-        // but we verify the app doesn't crash and button is interactive.
+        // Примечание: проверка Toast сложна в базовых тестах Compose,
+        // но мы проверяем, что приложение не ломается и кнопка интерактивна.
     }
 
     @Test
     fun testFieldInput() {
-        // Assuming "Километраж" is the label of the first field
+        // Если предположить, что «Километраж» является меткой первого поля
         composeTestRule.onNodeWithText("Километраж").performTextInput("150.50")
-        
-        // Verify text was entered
+
+        // Проверить, был ли введён текст
         composeTestRule.onNodeWithText("150.50").assertExists()
     }
 }
