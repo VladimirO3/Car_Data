@@ -41,9 +41,9 @@ fun PreviewMainLocationContent() {
     CarDataTheme {
         MainLocationContent(
             fields = listOf(
-                NumericField("km", "Километраж", "123.45"),
-                NumericField("fuel", "Топливо", "50.0"),
-                NumericField("std", "Норма", "8.5")
+                NumericField("km", "Спидометр(км)", "10.0"),
+                NumericField("fuel", "Топливо(л)", "30.0"),
+                NumericField("std", "Расхода топлива(л/100)", "6.5")
             ),
             onFieldChange = { _, _ -> },
             onStartClick = {},
@@ -204,9 +204,9 @@ fun MainLocationContent(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "Crazy truck crane Rosseti-Ural",
+            text = "Тruck crane Rosseti-Ural",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -231,8 +231,8 @@ fun MainLocationContent(
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onStartClick, modifier = Modifier.fillMaxWidth()) { Text("Поехали") }
-        Button(onClick = onStopClick, modifier = Modifier.fillMaxWidth()) { Text("Приехали") }
+        Button(onClick = onStartClick, modifier = Modifier.fillMaxWidth()) { Text("Старт") }
+        Button(onClick = onStopClick, modifier = Modifier.fillMaxWidth()) { Text("Стоп") }
         Spacer(modifier = Modifier.weight(1f))
         
         Text(
@@ -243,5 +243,6 @@ fun MainLocationContent(
             color = MaterialTheme.colorScheme.outline,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
+        Spacer(modifier = Modifier.height(10.dp))
     }
 }

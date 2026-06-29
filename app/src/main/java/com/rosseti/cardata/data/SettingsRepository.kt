@@ -8,44 +8,44 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 
 /**
- * Repository for managing persistent application settings using [SharedPreferences].
- * Handles saving and retrieving distance and field values.
+ * Репозиторий для управления параметрами постоянного приложения с помощью [SharedPreferences].
+ * Управление сохранением и извлечением значений расстояния и полей.
  *
- * @param context The application context used to access SharedPreferences.
+ * @param context Контекст приложения, используемый для доступа к SharedPreferences.
  */
 class SettingsRepository(context: Context) {
     private val sharedPrefs: SharedPreferences =
         context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
 
     /**
-     * Retrieves the total distance traveled from storage.
+     * Извлекает общее расстояние, пройденное с места хранения.
      *
-     * @return The stored total distance as a [Float].
+     * @return Общее хранимое расстояние как [Float].
      */
     fun getTotalDistance(): Float = sharedPrefs.getFloat(KEY_TOTAL_DISTANCE, 0f)
 
     /**
-     * Saves the total distance traveled to storage.
+     * Сохраняет общее расстояние, пройденное для хранения.
      *
-     * @param distance The total distance to save.
+     * @param distance Общее расстояние для сохранения.
      */
     fun saveTotalDistance(distance: Float) {
         sharedPrefs.edit { putFloat(KEY_TOTAL_DISTANCE, distance) }
     }
 
     /**
-     * Retrieves a stored field value by its ID.
+     * Извлекает сохраненное значение поля по его идентификатору.
      *
-     * @param id The unique identifier of the field.
-     * @return The stored value of the field as a [Float].
+     * @param id Уникальный идентификатор поля.
+     * @return Сохраненное значение поля как [Float].
      */
     fun getFieldValue(id: String): Float = sharedPrefs.getFloat(id, 0f)
 
     /**
-     * Saves a field value to storage.
+     * Сохраняет значение поля в хранилище.
      *
-     * @param id The unique identifier of the field.
-     * @param value The value to save.
+     * @param id Уникальный идентификатор поля.
+     * @param value Значение для сохранения.
      */
     fun saveFieldValue(id: String, value: Float) {
         sharedPrefs.edit { putFloat(id, value) }
