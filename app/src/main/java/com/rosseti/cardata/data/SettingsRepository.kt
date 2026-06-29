@@ -4,6 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 
+/**
+ * это слой хранения данных. В вашем приложении он отвечает за то,
+ * чтобы введенные вами цифры (километраж, остаток топлива и т.д.) не исчезали после закрытия приложения.
+ */
 class SettingsRepository(context: Context) {
     private val sharedPrefs: SharedPreferences =
         context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)

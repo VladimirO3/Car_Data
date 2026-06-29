@@ -29,6 +29,10 @@ import com.rosseti.cardata.data.SettingsRepository
 import com.rosseti.cardata.model.NumericField
 import com.rosseti.cardata.ui.theme.CarDataTheme
 
+/**
+ * это входная точка вашего приложения и его «лицо». Если MainViewModel — это мозг,
+ * то MainActivity — это органы чувств (GPS, нажатия на экран) и внешность (интерфейс).
+ */
 @Preview(showBackground = true)
 @Composable
 fun PreviewMainLocationContent() {
@@ -51,7 +55,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationCallback: LocationCallback
     private var lastLocation: Location? = null
 
-    // ViewModel with Repository injection
+    // ViewModel с инъекцией репозитория
     private val viewModel: MainViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -134,7 +138,7 @@ class MainActivity : ComponentActivity() {
 fun MainLocationScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     
-    // UI simply observes the state from ViewModel
+    // UI просто наблюдает за состоянием из ViewModel
     MainLocationContent(
         fields = viewModel.fields,
         onFieldChange = viewModel::onFieldChange,
