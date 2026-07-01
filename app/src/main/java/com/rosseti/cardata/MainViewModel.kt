@@ -14,8 +14,6 @@ import java.util.Locale
 /**
  * ViewModel для главного экрана приложения.
  * Обрабатывает логику данных, постоянство состояния и вычисления расстояний.
- *
- * @property repository Репозиторий, используемый для сохранения данных.
  */
 class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
 
@@ -32,10 +30,27 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         private set
 
     /**
-     * Список числовых полей, представляющих различные точки данных (например, пробег, топливо).
+     * Список числовых полей.
      */
     val fields = mutableStateListOf<NumericField>()
     
+    /**
+     * Состояние режима "Зима/Лето".
+     */
+    var isWinter = mutableStateOf(false)
+
+    /**
+     * Переключение режима зима/лето с немедленным обновлением расчетов.
+     */
+    fun toggleWinter(winter: Boolean) {
+        isWinter.value = winter
+        if (isTripStarted.value) {
+            refreshDistance()
+        } else {
+            loadFields()
+        }
+    }
+
     private var baseKm: Float = 0f
     private var baseFuel: Float = 0f
 
@@ -44,11 +59,9 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     }
 
     /**
-     * Загружает сохраненные значения полей и общее расстояние от репозитория.
-     * Инициализирует поля пользовательского интерфейса на основе загруженных данных.
+     * Загружает сохраненные параметры из репозитория и инициализирует список полей
      */
-    private fun loadFields() {
-        fields.clear()
+    fun loadFields() {
         baseKm = repository.getFieldValue("km")
         baseFuel = repository.getFieldValue("fuel")
         val fuelStd = repository.getFieldValue("fuelStandart")
@@ -59,13 +72,24 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val traveledKm = savedTripDistance / 1000f
         val currentTotalKm = baseKm + traveledKm
         
+        val winterFactor = if (isWinter.value) 1.1f else 1.0f
         val remainingFuel = if (fuelStd > 0) {
-            (baseFuel - (traveledKm * fuelStd / 100f)).coerceAtLeast(0f)
+            (baseFuel - (traveledKm * (fuelStd * winterFactor) / 100f)).coerceAtLeast(0f)
         } else baseFuel
 
-        fields.add(NumericField("km", "Километраж", if (currentTotalKm == 0f) "" else String.format(Locale.US, "%.2f", currentTotalKm)))
-        fields.add(NumericField("fuel", "Остаток топлива", if (remainingFuel == 0f) "" else String.format(Locale.US, "%.2f", remainingFuel)))
-        fields.add(NumericField("fuelStandart", "Норма расхода топлива", if (fuelStd == 0f) "" else String.format(Locale.US, "%.2f", fuelStd)))
+        val kmStr = if (currentTotalKm == 0f) "" else String.format(Locale.US, "%.2f", currentTotalKm)
+        val fuelStr = if (remainingFuel == 0f) "" else String.format(Locale.US, "%.2f", remainingFuel)
+        val fuelStdStr = if (fuelStd == 0f) "" else String.format(Locale.US, "%.2f", fuelStd)
+
+        if (fields.isEmpty()) {
+            fields.add(NumericField("km", "Километраж", kmStr))
+            fields.add(NumericField("fuel", "Остаток топлива", fuelStr))
+            fields.add(NumericField("fuelStandart", "Норма расхода топлива", fuelStdStr))
+        } else {
+            updateFieldIfChanged(0, kmStr)
+            updateFieldIfChanged(1, fuelStr)
+            updateFieldIfChanged(2, fuelStdStr)
+        }
         
         if (savedTripDistance > 0f) {
             isTripStarted.value = true
@@ -73,11 +97,23 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     }
 
     /**
-     * Обрабатывает изменения значения числового поля.
-     * Проверяет входные данные и обновляет состояние и репозиторий.
+     * Обновляет поле по указанному индексу только в том случае, если новое значение отличается от текущего.
+     * Это предотвращает лишние обновления состояния и перерисовки UI.
      *
      * @param index Индекс поля в списке [fields].
-     * @param input Новое значение строки, введенное пользователем.
+     * @param newValue Новое строковое значение для установки.
+     */
+    private fun updateFieldIfChanged(index: Int, newValue: String) {
+        if (fields[index].value != newValue) {
+            fields[index] = fields[index].copy(value = newValue)
+        }
+    }
+
+    /**
+     * Обрабатывает ввод пользователя для числовых полей, выполняет валидацию и сохраняет данные.
+     *
+     * Метод выполняет нормализацию разделителей (заменяет запятую на точку), проверяет ввод
+     * на соответствие формату десятичного числа (до 7 знаков до запятой и до 2 после) и
      */
     fun onFieldChange(index: Int, input: String) {
         if (index !in fields.indices) return
@@ -90,7 +126,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         
         if (isValidDecimal && formattedInput.length <= 10) {
             fields[index] = field.copy(value = formattedInput)
-            
             val floatValue = formattedInput.toFloatOrNull() ?: 0f
             
             if (field.id == "km") {
@@ -100,41 +135,60 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
             } else if (field.id == "fuel") {
                 baseFuel = floatValue
             }
-            
             repository.saveFieldValue(field.id, floatValue)
         }
     }
 
     /**
-     * Добавляет указанное расстояние к общему расстоянию поездки.
-     * Обновление полей интерфейса на основе нового общего расстояния и расхода топлива.
+     * Обновляет состояние данных о поездке на основе текущей дистанции из репозитория.
      *
-     * @param distanceMeters Расстояние, пройденное в метрах.
+     * Метод выполняет следующие действия:
+     * 1. Синхронизирует [totalDistance] с данными из [repository].
      */
-    fun addDistance(distanceMeters: Float) {
+    fun refreshDistance() {
         if (!isTripStarted.value) return
+        updateStateFromDistance(repository.getTotalDistance())
+    }
+
+    /**
+     * Добавляет пройденное расстояние в метрах к текущей поездке.
+     * Сохраняет новое значение в репозиторий и обновляет состояние.
+     *
+     * @param meters Расстояние в метрах для добавления.
+     */
+    fun addDistance(meters: Float) {
+        if (!isTripStarted.value) return
+        val newDist = totalDistance.floatValue + meters
+        repository.saveTotalDistance(newDist)
+        updateStateFromDistance(newDist)
+    }
+
+    /**
+     * Обновляет внутреннее состояние и поля на основе переданного расстояния.
+     *
+     * @param currentDist Текущее общее расстояние поездки в метрах.
+     */
+    private fun updateStateFromDistance(currentDist: Float) {
+        totalDistance.floatValue = currentDist
         
-        if (distanceMeters > 0.5f) {
-            totalDistance.floatValue += distanceMeters
-            repository.saveTotalDistance(totalDistance.floatValue)
-            
-            val traveledKm = totalDistance.floatValue / 1000f
-            val currentTotal = baseKm + traveledKm
-            
-            fields[0] = fields[0].copy(value = String.format(Locale.US, "%.2f", currentTotal))
-            
-            val fuelStd = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
-            if (fuelStd > 0) {
-                val fuelConsumed = (traveledKm * fuelStd) / 100f
-                val remainingFuel = (baseFuel - fuelConsumed).coerceAtLeast(0f)
-                fields[1] = fields[1].copy(value = String.format(Locale.US, "%.2f", remainingFuel))
-            }
+        val traveledKm = currentDist / 1000f
+        val currentTotal = baseKm + traveledKm
+        
+        updateFieldIfChanged(0, String.format(Locale.US, "%.2f", currentTotal))
+        
+        val fuelStd = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
+        if (fuelStd > 0) {
+            val winterFactor = if (isWinter.value) 1.1f else 1.0f
+            val fuelConsumed = (traveledKm * (fuelStd * winterFactor)) / 100f
+            val remainingFuel = (baseFuel - fuelConsumed).coerceAtLeast(0f)
+            updateFieldIfChanged(1, String.format(Locale.US, "%.2f", remainingFuel))
         }
     }
 
     /**
-     * Начинает новую поездку.
-     * Устанавливает начальные базовые значения для пробега и топлива.
+     * Запускает процесс отслеживания поездки.
+     * Устанавливает флаг начала поездки, фиксирует текущие введённые значения километража
+     * и остатка топлива как базовые для последующих расчетов и сохраняет их в репозитории.
      */
     fun onStartTrip() {
         isTripStarted.value = true
@@ -144,14 +198,11 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         repository.saveFieldValue("fuel", baseFuel)
     }
 
-    /**
-     * Останавливает текущую поездку.
-     * Сбрасывает расстояние поездки и сохраняет итоговые пробег и топливные значения в качестве новой базы.
-     */
     fun onStopTrip() {
         val traveledKm = totalDistance.floatValue / 1000f
         val fuelStd = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
-        val fuelConsumed = (traveledKm * fuelStd) / 100f
+        val winterFactor = if (isWinter.value) 1.1f else 1.0f
+        val fuelConsumed = (traveledKm * (fuelStd * winterFactor)) / 100f
 
         val finalKm = baseKm + traveledKm
         val remainingFuel = (baseFuel - fuelConsumed).coerceAtLeast(0f)
@@ -166,7 +217,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         repository.saveTotalDistance(0f)
         isTripStarted.value = false
 
-        fields[0] = fields[0].copy(value = String.format(Locale.US, "%.2f", finalKm))
-        fields[1] = fields[1].copy(value = String.format(Locale.US, "%.2f", remainingFuel))
+        updateFieldIfChanged(0, String.format(Locale.US, "%.2f", finalKm))
+        updateFieldIfChanged(1, String.format(Locale.US, "%.2f", remainingFuel))
     }
 }

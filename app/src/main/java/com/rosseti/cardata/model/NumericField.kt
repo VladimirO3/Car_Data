@@ -4,12 +4,12 @@
 package com.rosseti.cardata.model
 
 /**
- * Data class representing a numeric input field in the UI.
- * Holds information about the field's ID, label, and current value.
+ * Класс данных, представляющий числовое поле ввода в пользовательском интерфейсе.
+ * Содержит сведения об ID, метке и текущем значении поля.
  *
- * @property id Unique identifier for the field (e.g., "km", "fuel").
- * @property label The descriptive label displayed to the user for this field.
- * @property value The current string value of the field as entered or calculated.
+ * @property id Уникальный идентификатор поля (например, «km», «fuel»).
+ * @property label Описательная метка, отображаемая пользователю для данного поля.
+ * @property value Текущее строковое значение поля, введенное или вычисленное.
  */
 data class NumericField(
     val id: String,

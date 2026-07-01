@@ -14,6 +14,7 @@ mockito = "5.23.0"
 mockitoKotlin = "6.3.0"
 mockk = "1.14.11"
 coreTesting = "2.2.0"
+dokka = "2.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -39,5 +40,6 @@ androidx-core-testing = { group = "androidx.arch.core", name = "core-testing", v
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
