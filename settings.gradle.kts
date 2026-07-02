@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Car Data"
+rootProject.name = "TrackLit"
 include(":app")

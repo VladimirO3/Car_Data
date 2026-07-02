@@ -34,6 +34,32 @@ class SettingsRepository(context: Context) {
     }
 
     /**
+     * Сохраняет время начала поездки.
+     * @param time Время в миллисекундах.
+     */
+    fun saveStartTime(time: Long) {
+        sharedPrefs.edit { putLong(KEY_START_TIME, time) }
+    }
+
+    /**
+     * Извлекает время начала поездки.
+     * @return Время в миллисекундах.
+     */
+    fun getStartTime(): Long = sharedPrefs.getLong(KEY_START_TIME, 0L)
+
+    /**
+     * Сохраняет состояние активности поездки.
+     */
+    fun saveTripStarted(isStarted: Boolean) {
+        sharedPrefs.edit { putBoolean(KEY_IS_TRIP_STARTED, isStarted) }
+    }
+
+    /**
+     * Возвращает, запущена ли поездка.
+     */
+    fun isTripStarted(): Boolean = sharedPrefs.getBoolean(KEY_IS_TRIP_STARTED, false)
+
+    /**
      * Извлекает сохраненное значение поля по его идентификатору.
      *
      * @param id Уникальный идентификатор поля.
@@ -51,7 +77,22 @@ class SettingsRepository(context: Context) {
         sharedPrefs.edit { putFloat(id, value) }
     }
 
+    /**
+     * Сохраняет последнюю среднюю скорость.
+     */
+    fun saveAvgSpeed(speed: String) {
+        sharedPrefs.edit { putString(KEY_AVG_SPEED, speed) }
+    }
+
+    /**
+     * Извлекает последнюю сохраненную среднюю скорость.
+     */
+    fun getAvgSpeed(): String = sharedPrefs.getString(KEY_AVG_SPEED, "0.00") ?: "0.00"
+
     companion object {
         private const val KEY_TOTAL_DISTANCE = "total_distance"
+        private const val KEY_START_TIME = "trip_start_time"
+        private const val KEY_IS_TRIP_STARTED = "is_trip_started"
+        private const val KEY_AVG_SPEED = "last_avg_speed"
     }
 }
