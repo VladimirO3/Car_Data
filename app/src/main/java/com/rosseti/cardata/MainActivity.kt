@@ -5,12 +5,15 @@ package com.rosseti.cardata
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import android.widget.Toast.makeText
 import androidx.activity.ComponentActivity
@@ -162,12 +165,19 @@ class MainActivity : ComponentActivity() {
     /**
      * Обрабатывает нажатие кнопки «Старт» для начала отслеживания поездки.
      *
-     * Метод проверяет наличие разрешения на доступ к точному местоположению ([Manifest.permission.ACCESS_FINE_LOCATION]).
+     * Метод сначала проверяет, включен ли GPS на устройстве. Если нет, перенаправляет в настройки.
+     * Затем проверяет наличие разрешения на доступ к точному местоположению ([Manifest.permission.ACCESS_FINE_LOCATION]).
      * Если разрешение предоставлено, переходит к проверке фонового доступа через [checkBackgroundPermission].
      * В противном случае запрашивает необходимые разрешения (точное и примерное местоположение)
      * через [requestPermissionLauncher].
      */
     private fun onStartClicked() {
+        if (!isLocationEnabled()) {
+            Toast.makeText(this, "Пожалуйста, включите GPS в настройках", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            return
+        }
+
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             checkBackgroundPermission()
         } else {
@@ -176,6 +186,12 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ))
         }
+    }
+
+    private fun isLocationEnabled(): Boolean {
+        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 
     /**
@@ -273,22 +289,7 @@ fun MainLocationScreen(
 }
 
 /**
- * Основной компонент интерфейса пользователя, обрабатывающий главный экран GPS-трекер.
- *
- * Эта компоновка адаптируется как к портретным, так и к ландшафтным ориентациям, обеспечивая:
- * - Краткое представление текущего пробега и оставшегося топлива.
- * - Поля ввода для числовых данных (спидометр, топливо, нормы потребления).
- * - Переключатель зимнего режима для корректировки расчёта топлива.
- * - Кнопки управления для запуска и остановки службы отслеживания поездок.
- * - Информация о разработчиках и авторском праве.
- *
- * @param fields Список объектов [NumericField], содержащих данные для полей ввода.
- * @param isWinter Boolean A, указывающий на активность зимнего режима (+10% расхода топлива).
- * @param onWinterChange Callback активируется при переключении зимнего режима.
- * @param onFieldChange Callback инициируется при редактировании значения числового поля.
- * предоставление индекса поля и нового значения строки.
- * @param onStartClick Callback выполняется при нажатии кнопки «Start».
- * @param onStopClick Callback выполняется при нажатии кнопки «Стоп».
+ * Основной компонент интерфейса пользователя, отвечающий за отображение главного
  */
 @SuppressLint("DefaultLocale")
 @Composable
@@ -311,20 +312,23 @@ fun MainLocationContent(
     if (isLandscape) {
         Row(
             modifier = Modifier.fillMaxSize().padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(modifier = Modifier.weight(1f).verticalScroll(scrollStateLeft)) {
-                Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier.weight(1f).verticalScroll(scrollStateLeft),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(0.dp))
                 Text(
                     text = "Тruck crane GPS-tracker",
-                    fontSize = 22.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
                     text = String.format(Locale.US, "Километраж: %.2f км\nТопливо: %.2f л", 
                                         currentTotalKm, currentRemainingFuel),
-                    fontSize = 14.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -334,25 +338,38 @@ fun MainLocationContent(
                         OutlinedTextField(
                             value = field.value,
                             onValueChange = { onFieldChange(index, it) },
-                            label = { Text(field.label) },
+                            label = { Text(field.label, fontSize = 10.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            modifier = Modifier.width(260.dp).padding(vertical = 2.dp),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 10.sp)
                         )
                     }
                 }
             }
-            Column(modifier = Modifier.weight(1f).verticalScroll(scrollStateRight), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = onStartClick, modifier = Modifier.fillMaxWidth()) { Text("Старт") }
-                Button(onClick = onStopClick, modifier = Modifier.fillMaxWidth()) { Text("Стоп") }
-                Spacer(modifier = Modifier.height(20.dp))
+            Column(
+                modifier = Modifier.weight(1f).verticalScroll(scrollStateRight),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(40.dp))
+                Button(
+                    onClick = onStartClick,
+                    modifier = Modifier.width(240.dp)
+                ) { Text("Старт") }
+                Button(
+                    onClick = onStopClick,
+                    modifier = Modifier.width(240.dp)
+                ) { Text("Стоп") }
+                
+                Spacer(modifier = Modifier.height(110.dp))
                 Text(
                     text = "Разработано: Осетров В.В.\n© 2026",
                     modifier = Modifier.fillMaxWidth(),
-                    fontSize = 11.sp,
+                    fontSize = 8.sp,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.outline
                 )
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
         }
     } else {

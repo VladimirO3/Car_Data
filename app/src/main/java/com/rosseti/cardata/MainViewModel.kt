@@ -192,6 +192,9 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
      */
     fun onStartTrip() {
         isTripStarted.value = true
+        totalDistance.floatValue = 0f
+        repository.saveTotalDistance(0f)
+
         baseKm = fields.getOrNull(0)?.value?.toFloatOrNull() ?: 0f
         baseFuel = fields.getOrNull(1)?.value?.toFloatOrNull() ?: 0f
         repository.saveFieldValue("km", baseKm)
