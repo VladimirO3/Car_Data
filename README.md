@@ -1,10 +1,7 @@
 # My app for collecting data on vehicle movement 
 <img src="2026-07-03_22-48-20.png" width="700" alt="Описание">
-<!DOCTYPE html>
-<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TrackLit — Документация Проекта</title>
     <style>
         body {
