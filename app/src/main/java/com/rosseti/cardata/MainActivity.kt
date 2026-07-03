@@ -6,22 +6,44 @@ package com.rosseti.cardata
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.location.LocationManager
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import android.widget.Toast.makeText
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -57,9 +79,8 @@ fun PreviewMainLocationContent() {
             ),
             isWinter = false,
             isSpring = false,
-            isTripStarted = true,
-            onWinterChange = {},
             onSpringChange = {},
+            onWinterChange = {},
             onFieldChange = { _, _ -> },
             onStartClick = {},
             onStopClick = {}
@@ -74,7 +95,7 @@ fun PreviewMainLocationContent() {
  * Эта деятельность обрабатывает:
  * - Запросы на разрешение выполнения для служб местоположения (точные, основные и фоновые).
  * - Инициализация [MainViewModel] с его репозиторием посредством настраиваемого [ViewModelProvider.Factory].
- * - Наблюдение за [SharedPreferences], чтобы инициировать обновления пользовательского интерфейса при обновлении данных о расстоянии фоновым сервисом.
+ * - Наблюдение за [android.content.SharedPreferences], чтобы инициировать обновления пользовательского интерфейса при обновлении данных о расстоянии фоновым сервисом.
  * - Запуск и остановка [LocationService] для фонового GPS-отслеживания.
  * - Рендеринг пользовательского интерфейса на основе Compose для ввода данных о поездке, мониторинга состояния и выбора зимнего режима.
  *
@@ -94,10 +115,10 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Слушатель для изменений в [SharedPreferences], которые инициируют обновление интерфейса пользователя при изменении расстояния поездки.
+     * Слушатель для изменений в [android.content.SharedPreferences], которые инициируют обновление интерфейса пользователя при изменении расстояния поездки.
      * В частности, он следит за ключом «total_distance», чтобы [MainViewModel] оставался синхронизированным.
      */
-    private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+    private val preferenceChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "total_distance") {
             runOnUiThread { viewModel.refreshDistance() }
         }
@@ -132,15 +153,17 @@ class MainActivity : ComponentActivity() {
     private val backgroundPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        startTripService()
-        if (!isGranted) {
+        if (isGranted) {
+            startTripService()
+        } else {
             makeText(this, "Фоновый доступ не предоставлен", Toast.LENGTH_SHORT).show()
+            startTripService()
         }
     }
 
     /**
      * Вызывается при создании активности. Инициализирует настройки приложения,
-     * регистрирует слушателя изменений в [SharedPreferences] для обновления данных о расстоянии
+     * регистрирует слушателя изменений в [android.content.SharedPreferences] для обновления данных о расстоянии
      * и устанавливает пользовательский интерфейс с помощью Jetpack Compose.
      *
      * @param savedInstanceState Если активность воссоздается из предыдущего сохраненного состояния, это этот Bundle.
@@ -163,12 +186,19 @@ class MainActivity : ComponentActivity() {
     /**
      * Обрабатывает нажатие кнопки «Старт» для начала отслеживания поездки.
      *
-     * Метод проверяет наличие разрешения на доступ к точному местоположению ([Manifest.permission.ACCESS_FINE_LOCATION]).
+     * Метод сначала проверяет, включен ли GPS на устройстве. Если нет, перенаправляет в настройки.
+     * Затем проверяет наличие разрешения на доступ к точному местоположению ([Manifest.permission.ACCESS_FINE_LOCATION]).
      * Если разрешение предоставлено, переходит к проверке фонового доступа через [checkBackgroundPermission].
      * В противном случае запрашивает необходимые разрешения (точное и примерное местоположение)
      * через [requestPermissionLauncher].
      */
-    private fun onStartClicked() {
+	private fun onStartClicked() {
+        if (!isLocationEnabled()) {
+            makeText(this, "Пожалуйста, включите GPS в настройках", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            return
+        }
+
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             checkBackgroundPermission()
         } else {
@@ -177,6 +207,12 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ))
         }
+    }
+
+    private fun isLocationEnabled(): Boolean {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 
     /**
@@ -252,15 +288,17 @@ fun MainLocationScreen(
     val context = LocalContext.current
     MainLocationContent(
         fields = viewModel.fields,
-        isWinter = viewModel.isWinter.value,
-        onWinterChange = { viewModel.toggleWinter(it) },
         isSpring = viewModel.isSpring.value,
+        isWinter = viewModel.isWinter.value,
         onSpringChange = { viewModel.toggleSpring(it) },
-        isTripStarted = viewModel.isTripStarted.value,
+        onWinterChange = { viewModel.toggleWinter(it) },
         onFieldChange = viewModel::onFieldChange,
         onStartClick = {
             onStart()
-            makeText(context, "Рейс запущен", Toast.LENGTH_SHORT).show()
+            val kmValue = viewModel.fields.getOrNull(0)?.value ?: ""
+            if (kmValue.isNotEmpty()) {
+                makeText(context, "Рейс запущен", Toast.LENGTH_SHORT).show()
+            }
         },
         onStopClick = {
             onStop()
@@ -270,22 +308,7 @@ fun MainLocationScreen(
 }
 
 /**
- * Основной компонент интерфейса пользователя, обрабатывающий главный экран GPS-трекер.
- *
- * Эта компоновка адаптируется как к портретным, так и к ландшафтным ориентациям, обеспечивая:
- * - Краткое представление текущего пробега и оставшегося топлива.
- * - Поля ввода для числовых данных (спидометр, топливо, нормы потребления).
- * - Переключатель зимнего режима для корректировки расчёта топлива.
- * - Кнопки управления для запуска и остановки службы отслеживания поездок.
- * - Информация о разработчиках и авторском праве.
- *
- * @param fields Список объектов [NumericField], содержащих данные для полей ввода.
- * @param isWinter Boolean A, указывающий на активность зимнего режима (+10% расхода топлива).
- * @param onWinterChange Callback активируется при переключении зимнего режима.
- * @param onFieldChange Callback инициируется при редактировании значения числового поля.
- * Предоставление индекса поля и нового значения строки.
- * @param onStartClick Callback выполняется при нажатии кнопки «Start».
- * @param onStopClick Callback выполняется при нажатии кнопки «Стоп».
+ * Основной компонент интерфейса пользователя, отвечающий за отображение главного
  */
 @SuppressLint("DefaultLocale")
 @Composable
@@ -293,7 +316,6 @@ fun MainLocationContent(
     fields: List<NumericField>,
     isWinter: Boolean,
     isSpring: Boolean,
-    isTripStarted: Boolean,
     onWinterChange: (Boolean) -> Unit,
     onSpringChange: (Boolean) -> Unit,
     onFieldChange: (Int, String) -> Unit,
@@ -306,85 +328,124 @@ fun MainLocationContent(
     val currentRemainingFuel = fields.getOrNull(1)?.value?.toFloatOrNull() ?: 0f
     val currentAvgSpeed = fields.getOrNull(3)?.value?.toFloatOrNull() ?: 0f
     
-    val scrollState = rememberScrollState()
+    val scrollStateLeft = rememberScrollState()
+    val scrollStateRight = rememberScrollState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(scrollState),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "TrackLit",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center
-            )
-            if (isTripStarted) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    modifier = Modifier.padding(top = 4.dp)
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isLandscape) {
+            Column(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+                Text(
+                    text = "TrackLit",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = String.format(Locale.US, "Километраж: %.2f км | Топливо: %.2f л | Ср. скорость: %.2f км/ч", 
+                                        currentTotalKm, currentRemainingFuel, currentAvgSpeed),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "● РЕЙС",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(scrollStateLeft),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                fields.forEachIndexed { index, field ->
+                                    key(field.id) {
+                                        OutlinedTextField(
+                                            value = field.value,
+                                            onValueChange = { onFieldChange(index, it) },
+                                            label = { Text(field.label, fontSize = 9.sp) },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            modifier = Modifier.width(260.dp).padding(vertical = 1.dp),
+                                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 10.sp),
+                                            readOnly = field.id == "avg_speed",
+                                            singleLine = true
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(scrollStateRight),
+                        verticalArrangement = Arrangement.Top,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(
+                            onClick = onStartClick,
+                            modifier = Modifier.width(240.dp)
+                        ) { Text("Старт") }
+                        Button(
+                            onClick = onStopClick,
+                            modifier = Modifier.width(240.dp)
+                        ) { Text("Стоп") }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                MyCheckboxScreenCompact(isWinter, onWinterChange, "Зима (+10%)")
+                                MyCheckboxScreenCompact(isSpring, onSpringChange, "Весна (+10%)")
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(80.dp))
+                        Text(
+                            text = "Разработано: Осетров В.В.\n© 2026",
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = 8.sp,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Spacer(modifier = Modifier.height(32.dp))
+                    }
                 }
             }
-        }
-
-        // Блок статистики
-        if (isLandscape) {
-            Text(
-                text = String.format(Locale.US, "Километраж: %.2f км  |  Топливо: %.2f л  |  Ср. скорость: %.2f км/ч", 
-                                    currentTotalKm, currentRemainingFuel, currentAvgSpeed),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.secondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
         } else {
-            Column {
-                Text(
-                    text = String.format(Locale.US, "Общий километраж: %.2f км", currentTotalKm),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Text(
-                    text = String.format(Locale.US, "Остаток топлива: %.2f л", currentRemainingFuel),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Text(
-                    text = String.format(Locale.US, "Средняя скорость: %.2f км/ч", currentAvgSpeed),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
-        }
-
-        if (isLandscape) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            Column(
+                modifier = Modifier.fillMaxSize().padding(10.dp).verticalScroll(scrollStateLeft),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    fields.forEachIndexed { index, field ->
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "TrackLit",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = String.format(Locale.US, "Общий километраж: %.2f км\nОстаток топлива: %.2f л\nСредняя скорость: %.2f км/ч", 
+                                        currentTotalKm, currentRemainingFuel, currentAvgSpeed),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                Row {
+                    MyCheckboxScreen(isWinter, onWinterChange)
+                    MyCheckboxScreenSpring(isSpring, onSpringChange)
+                }
+                fields.forEachIndexed { index, field ->
+                    key(field.id) {
                         OutlinedTextField(
                             value = field.value,
                             onValueChange = { onFieldChange(index, it) },
@@ -395,54 +456,94 @@ fun MainLocationContent(
                         )
                     }
                 }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        MyCheckbox(isWinter, onWinterChange, "Зима (+10%)")
-                        Spacer(modifier = Modifier.width(8.dp))
-                        MyCheckbox(isSpring, onSpringChange, "Весна (+10%)")
-                    }
-                    Button(onClick = onStartClick, modifier = Modifier.fillMaxWidth()) { Text("Старт") }
-                    Button(onClick = onStopClick, modifier = Modifier.fillMaxWidth()) { Text("Стоп") }
-                }
-            }
-        } else {
-            fields.forEachIndexed { index, field ->
-                OutlinedTextField(
-                    value = field.value,
-                    onValueChange = { onFieldChange(index, it) },
-                    label = { Text(field.label) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    readOnly = field.id == "avg_speed"
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = onStartClick, modifier = Modifier.fillMaxWidth()) { Text("Старт") }
+                Button(onClick = onStopClick, modifier = Modifier.fillMaxWidth()) { Text("Стоп") }
+                Spacer(modifier = Modifier.height(100.dp))
+                Text(
+                    text = "Разработано: Осетров В.В.\n© 2026. Все права защищены.",
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline,
+                    textAlign = TextAlign.Center
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MyCheckbox(isWinter, onWinterChange, "Зима (+10%)")
-                Spacer(modifier = Modifier.width(16.dp))
-                MyCheckbox(isSpring, onSpringChange, "Весна (+10%)")
-            }
-            Button(onClick = onStartClick, modifier = Modifier.fillMaxWidth()) { Text("Старт") }
-            Button(onClick = onStopClick, modifier = Modifier.fillMaxWidth()) { Text("Стоп") }
         }
 
-        Spacer(modifier = Modifier.height(125.dp))
+        // Иконка в правом верхнем углу
+        IconButton(
+            onClick = { /* Действие при нажатии */ },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Настройки",
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+/**
+ * Отображает строку с флажком (Checkbox) для выбора зимнего режима.
+ * Данный режим предполагает корректировку расхода топлива (например, +10%).
+ *
+ * @param isChecked Текущее состояние флажка (выбрано или нет).
+ * @param onCheckedChange Лямбда-выражение, вызываемое при изменении состояния флажка.
+ */
+@Composable
+fun MyCheckboxScreen(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange
+        )
         Text(
-            text = "© 2026. Все права защищены.",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.outline,
-            textAlign = TextAlign.Center
+            text = "Зима (+10%)",
+            modifier = Modifier.padding(start = 4.dp)
+        )
+    }
+}
+@Composable
+fun MyCheckboxScreenSpring(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange
+        )
+        Text(
+            text = "Весна (+10%)",
+            modifier = Modifier.padding(start = 4.dp)
         )
     }
 }
 
+/**
+ * Компактная версия чекбокса для альбомной ориентации.
+ */
 @Composable
-fun MyCheckbox(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = isChecked, onCheckedChange = onCheckedChange)
-        Text(text = label, modifier = Modifier.padding(start = 4.dp))
+fun MyCheckboxScreenCompact(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = 4.dp)
+    ) {
+        Checkbox(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.padding(0.dp)
+        )
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(start = 2.dp)
+        )
     }
 }
