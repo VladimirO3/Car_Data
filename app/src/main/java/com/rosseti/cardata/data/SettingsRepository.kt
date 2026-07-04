@@ -89,10 +89,23 @@ class SettingsRepository(context: Context) {
      */
     fun getAvgSpeed(): String = sharedPrefs.getString(KEY_AVG_SPEED, "0.00") ?: "0.00"
 
+    /**
+     * Сохраняет текущую мгновенную скорость.
+     */
+    fun saveCurrentSpeed(speed: Float) {
+        sharedPrefs.edit { putFloat(KEY_CURRENT_SPEED, speed) }
+    }
+
+    /**
+     * Извлекает текущую мгновенную скорость.
+     */
+    fun getCurrentSpeed(): Float = sharedPrefs.getFloat(KEY_CURRENT_SPEED, 0f)
+
     companion object {
         private const val KEY_TOTAL_DISTANCE = "total_distance"
         private const val KEY_START_TIME = "trip_start_time"
         private const val KEY_IS_TRIP_STARTED = "is_trip_started"
         private const val KEY_AVG_SPEED = "last_avg_speed"
+        private const val KEY_CURRENT_SPEED = "current_speed"
     }
 }

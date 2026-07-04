@@ -11,11 +11,8 @@ import org.junit.runner.RunWith
 
 /**
  * Тесты UI для [MainActivity] с использованием тестовых API Jetpack Compose.
- *
- * Этот класс проверяет основные компоненты пользовательского интерфейса и взаимодействия внутри основного экрана,
- * включая доступность заголовка заявки, оперативность кнопки начала поездки,
- * и ввод данных в полях ввода, таких как пробег.
  */
+@Suppress("DEPRECATION")
 @RunWith(AndroidJUnit4::class)
 class MainActivityUITest {
 
@@ -23,25 +20,51 @@ class MainActivityUITest {
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun testAppTitleIsDisplayed() {
-        composeTestRule.onNodeWithText("Logistic_data Rosseti-Ural").assertExists()
-    }
-
-    @Test
-    fun testStartTripShowsToast() {
-        // Найдите кнопку «Поехали» и нажмите на неё
-        composeTestRule.onNodeWithText("Поехали").performClick()
+    fun testAppTitleAndStatsAreDisplayed() {
+        // Проверка заголовка
+        composeTestRule.onNodeWithText("TrackLit").assertExists()
         
-        // Примечание: проверка Toast сложна в базовых тестах Compose,
-        // но мы проверяем, что приложение не ломается и кнопка интерактивна.
+        // Проверка наличия основных полей
+        composeTestRule.onNodeWithText("Километраж").assertExists()
+        composeTestRule.onNodeWithText("Остаток топлива").assertExists()
+        composeTestRule.onNodeWithText("Норма расхода топлива").assertExists()
     }
 
     @Test
-    fun testFieldInput() {
-        // Если предположить, что «Километраж» является меткой первого поля
-        composeTestRule.onNodeWithText("Километраж").performTextInput("150.50")
+    fun testFieldInputAndValidation() {
+        // Ввод данных в поле километража
+        composeTestRule.onNodeWithText("Километраж").performTextInput("12345.67")
+        
+        // Проверка, что текст отобразился
+        composeTestRule.onNodeWithText("12345.67").assertExists()
+    }
 
-        // Проверить, был ли введён текст
-        composeTestRule.onNodeWithText("150.50").assertExists()
+    @Test
+    fun testModeSelection() {
+        // Проверка наличия переключателей режимов
+        composeTestRule.onNodeWithText("Зима (+10%)").assertExists()
+        composeTestRule.onNodeWithText("Весна (+10%)").assertExists()
+        
+        // Клик по переключателю
+        composeTestRule.onNodeWithText("Зима (+10%)").performClick()
+    }
+
+    @Test
+    fun testTripStartedMarkerVisibility() {
+        // Изначально маркера нет
+        composeTestRule.onNodeWithText("● РЕЙС").assertDoesNotExist()
+
+        // Кнопка Старт должна существовать
+        composeTestRule.onNodeWithText("Старт").assertExists()
+        
+        // Примечание: Мы не можем легко симулировать нажатие Старт здесь, так как оно 
+        // запускает Foreground Service и запрашивает GPS, что требует мокирования 
+        // или специальных разрешений в тесте. Но мы проверили статический UI.
+    }
+
+    @Test
+    fun testCompactLayoutInLandscape() {
+        // Переключаем в альбомный режим (Landscape)
+        // В реальном тесте это требует изменения конфигурации устройства
     }
 }

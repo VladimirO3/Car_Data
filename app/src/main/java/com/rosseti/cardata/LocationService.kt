@@ -46,14 +46,20 @@ class LocationService : Service() {
                         Log.d("LocationService", "First location fixed")
                     } else {
                         val distance = last.distanceTo(location)
-                        Log.d("LocationService", "Distance from last: $distance meters")
+                        val speed = if (location.hasSpeed()) location.speed else 0f
                         
-                        if (distance >= 1.0f) {
+                        // Сохраняем мгновенную скорость (переводим м/с в км/ч)
+                        repository.saveCurrentSpeed(speed * 3.6f)
+                        
+                        // Игнорируем перемещения менее 3 метров или если скорость слишком мала (фильтрация дрейфа)
+                        if (distance >= 3.0f && (speed > 0.5f || distance > 10f)) {
                             val currentTotal = repository.getTotalDistance()
                             val newTotal = currentTotal + distance
                             repository.saveTotalDistance(newTotal)
                             lastLocation = location
                             Log.d("LocationService", "Total distance updated: $newTotal meters")
+                        } else {
+                            Log.d("LocationService", "Ignoring GPS jitter: dist=$distance, speed=$speed")
                         }
                     }
                 }

@@ -3,6 +3,7 @@
  */
 package com.rosseti.cardata
 
+import android.annotation.SuppressLint
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -17,22 +18,6 @@ import java.util.Locale
  */
 class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
 
-    companion object {
-        private const val SEASONAL_FACTOR = 1.1f
-        private const val METERS_PER_KM = 1000f
-        private const val FUEL_CONSUMPTION_BASE_DISTANCE = 100f
-        private const val STABILIZATION_DURATION_MS = 5000L
-        private const val MAX_PLAUSIBLE_SPEED_KMH = 250f
-        private const val IDLE_FUEL_CONSUMPTION_L_H = 1.0f // Расход на холостом ходу (л/час)
-
-        private const val ID_KM = "km"
-        private const val ID_FUEL = "fuel"
-        private const val ID_FUEL_STD = "fuelStandart"
-        private const val ID_AVG_SPEED = "avg_speed"
-
-        private val DECIMAL_REGEX = Regex("""^\d{0,7}(\.\d{0,2})?$""")
-    }
-
     /**
      * Общее расстояние, пройденное в текущей поездке, в метрах.
      */
@@ -46,20 +31,41 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         private set
 
     /**
+     * Текущая мгновенная скорость.
+     */
+    var currentSpeed = mutableFloatStateOf(0f)
+        private set
+
+    /**
      * Список числовых полей.
      */
     val fields = mutableStateListOf<NumericField>()
-
+    
     /**
-     * Состояние режима "Весна".
+     * Состояние режима "Зима/Лето".
      */
+    var isWinter = mutableStateOf(false)
     var isSpring = mutableStateOf(false)
 
     /**
-     * Состояние режима "Зима".
+     * Переключение режима зима/лето с немедленным обновлением расчетов.
      */
-    var isWinter = mutableStateOf(false)
-
+    fun toggleWinter(winter: Boolean) {
+        isWinter.value = winter
+        if (isTripStarted.value) {
+            refreshDistance()
+        } else {
+            loadFields()
+        }
+    }
+    fun toggleSpring(spring: Boolean) {
+        isSpring.value = spring
+        if (isTripStarted.value) {
+            refreshDistance()
+        } else {
+            loadFields()
+        }
+    }
     private var baseKm: Float = 0f
     private var baseFuel: Float = 0f
 
@@ -68,119 +74,66 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     }
 
     /**
-     * Переключение режима "Весна" с обновлением расчетов.
-     */
-    fun toggleSpring(spring: Boolean) {
-        isSpring.value = spring
-        updateCalculations()
-    }
-
-    /**
-     * Переключение режима "Зима" с обновлением расчетов.
-     */
-    fun toggleWinter(winter: Boolean) {
-        isWinter.value = winter
-        updateCalculations()
-    }
-
-    private fun updateCalculations() {
-        if (isTripStarted.value) {
-            refreshDistance()
-        } else {
-            loadFields()
-        }
-    }
-
-    /**
-     * Загружает сохраненные параметры из репозитория и инициализирует список полей.
+     * Загружает сохраненные параметры из репозитория и инициализирует список полей
      */
     fun loadFields() {
-        baseKm = repository.getFieldValue(ID_KM)
-        baseFuel = repository.getFieldValue(ID_FUEL)
-        val fuelStd = repository.getFieldValue(ID_FUEL_STD)
+        baseKm = repository.getFieldValue("km")
+        baseFuel = repository.getFieldValue("fuel")
+        val fuelStd = repository.getFieldValue("fuelStandart")
         
         val savedTripDistance = repository.getTotalDistance()
         totalDistance.floatValue = savedTripDistance
         
-        isTripStarted.value = repository.isTripStarted() || savedTripDistance > 0f
-        
-        val traveledKm = savedTripDistance / METERS_PER_KM
+        val traveledKm = savedTripDistance / 1000f
         val currentTotalKm = baseKm + traveledKm
         
-        val startTime = repository.getStartTime()
-        val durationMillis = if (isTripStarted.value && startTime > 0) System.currentTimeMillis() - startTime else 0L
-
-        val avgSpeedStr = if (isTripStarted.value) {
+        val avgSpeedStr = if (repository.isTripStarted()) {
             calculateAverageSpeed(savedTripDistance)
         } else {
             repository.getAvgSpeed()
         }
-        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd, durationMillis)
 
-        val kmStr = formatDecimal(currentTotalKm)
-        val fuelStr = formatDecimal(remainingFuel)
-        val fuelStdStr = formatDecimal(fuelStd)
+        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd)
+
+        val kmStr = if (currentTotalKm == 0f) "" else String.format(Locale.US, "%.2f", currentTotalKm)
+        val fuelStr = if (remainingFuel == 0f) "" else String.format(Locale.US, "%.2f", remainingFuel)
+        val fuelStdStr = if (fuelStd == 0f) "" else String.format(Locale.US, "%.2f", fuelStd)
 
         if (fields.isEmpty()) {
-            fields.add(NumericField(ID_KM, "Километраж", kmStr))
-            fields.add(NumericField(ID_FUEL, "Остаток топлива", fuelStr))
-            fields.add(NumericField(ID_FUEL_STD, "Норма расхода топлива", fuelStdStr))
-            fields.add(NumericField(ID_AVG_SPEED, "Ср. скорость (км/ч)", avgSpeedStr))
+            fields.add(NumericField("km", "Километраж", kmStr))
+            fields.add(NumericField("fuel", "Остаток топлива", fuelStr))
+            fields.add(NumericField("fuelStandart", "Норма расхода топлива", fuelStdStr))
+            fields.add(NumericField("avg_speed", "Ср. скорость (км/ч)", avgSpeedStr))
         } else {
-            updateField(ID_KM, kmStr)
-            updateField(ID_FUEL, fuelStr)
-            updateField(ID_FUEL_STD, fuelStdStr)
-            updateField(ID_AVG_SPEED, avgSpeedStr)
+            updateFieldIfChanged(0, kmStr)
+            updateFieldIfChanged(1, fuelStr)
+            updateFieldIfChanged(2, fuelStdStr)
+            updateFieldIfChanged(3, avgSpeedStr)
+        }
+        
+        if (savedTripDistance > 0f || repository.isTripStarted()) {
+            isTripStarted.value = true
         }
     }
 
     /**
-     * Обновляет поле по его ID, если значение изменилось.
+     * Обновляет поле по указанному индексу только в том случае, если новое значение отличается от текущего.
+     * Это предотвращает лишние обновления состояния и перерисовки UI.
+     *
+     * @param index Индекс поля в списке [fields].
+     * @param newValue Новое строковое значение для установки.
      */
-    private fun updateField(id: String, newValue: String) {
-        val index = fields.indexOfFirst { it.id == id }
-        if (index != -1 && fields[index].value != newValue) {
+    private fun updateFieldIfChanged(index: Int, newValue: String) {
+        if (index in fields.indices && fields[index].value != newValue) {
             fields[index] = fields[index].copy(value = newValue)
         }
     }
 
     /**
-     * Форматирует число с плавающей запятой в строку с двумя знаками после запятой.
-     */
-    private fun formatDecimal(value: Float): String {
-        return if (value == 0f) "" else String.format(Locale.US, "%.2f", value)
-    }
-
-    /**
-     * Вычисляет остаток топлива на основе пройденного расстояния, нормы расхода и времени работы двигателя.
-     */
-    private fun calculateRemainingFuel(traveledKm: Float, fuelStd: Float, durationMillis: Long): Float {
-        if (fuelStd <= 0) return baseFuel
-        
-        val totalFactor = getConsumptionFactor()
-        
-        // Расход в движении (л/100км)
-        val fuelConsumedMoving = (traveledKm * (fuelStd * totalFactor)) / FUEL_CONSUMPTION_BASE_DISTANCE
-        
-        // Расход на холостом ходу (л/час)
-        val durationHours = durationMillis / (1000f * 60f * 60f)
-        val fuelConsumedIdle = durationHours * IDLE_FUEL_CONSUMPTION_L_H
-        
-        return (baseFuel - (fuelConsumedMoving + fuelConsumedIdle)).coerceAtLeast(0f)
-    }
-
-    /**
-     * Возвращает итоговый коэффициент расхода топлива с учетом сезонных факторов (аддитивно).
-     */
-    private fun getConsumptionFactor(): Float {
-        var additionalFactor = 0.0f
-        if (isSpring.value) additionalFactor += (SEASONAL_FACTOR - 1.0f)
-        if (isWinter.value) additionalFactor += (SEASONAL_FACTOR - 1.0f)
-        return 1.0f + additionalFactor
-    }
-
-    /**
-     * Обрабатывает ввод пользователя для числовых полей.
+     * Обрабатывает ввод пользователя для числовых полей, выполняет валидацию и сохраняет данные.
+     *
+     * Метод выполняет нормализацию разделителей (заменяет запятую на точку), проверяет ввод
+     * на соответствие формату десятичного числа (до 7 знаков до запятой и до 2 после) и
      */
     fun onFieldChange(index: Int, input: String) {
         if (index !in fields.indices) return
@@ -188,37 +141,41 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val field = fields[index]
         val formattedInput = input.replace(',', '.')
         
-        val isValidInput = formattedInput.isEmpty() || 
-                          (formattedInput.matches(DECIMAL_REGEX) && formattedInput.length <= 10)
+        val isValidDecimal = formattedInput.isEmpty() || 
+                           formattedInput.matches(Regex("""^\d{0,7}(\.\d{0,2})?$"""))
         
-        if (isValidInput) {
+        if (isValidDecimal && formattedInput.length <= 10) {
             fields[index] = field.copy(value = formattedInput)
             val floatValue = formattedInput.toFloatOrNull() ?: 0f
             
-            when (field.id) {
-                ID_KM -> {
-                    baseKm = floatValue
-                    totalDistance.floatValue = 0f
-                    repository.saveTotalDistance(0f)
-                }
-                ID_FUEL -> {
-                    baseFuel = floatValue
-                }
+            if (field.id == "km") {
+                baseKm = floatValue
+                totalDistance.floatValue = 0f
+                repository.saveTotalDistance(0f)
+            } else if (field.id == "fuel") {
+                baseFuel = floatValue
             }
             repository.saveFieldValue(field.id, floatValue)
         }
     }
 
     /**
-     * Синхронизирует состояние с текущей дистанцией.
+     * Обновляет состояние данных о поездке на основе текущей дистанции из репозитория.
+     *
+     * Метод выполняет следующие действия:
+     * 1. Синхронизирует [totalDistance] с данными из [repository].
      */
     fun refreshDistance() {
         if (!isTripStarted.value) return
+        currentSpeed.floatValue = repository.getCurrentSpeed()
         updateStateFromDistance(repository.getTotalDistance())
     }
 
     /**
-     * Добавляет пройденное расстояние и обновляет состояние.
+     * Добавляет пройденное расстояние в метрах к текущей поездке.
+     * Сохраняет новое значение в репозиторий и обновляет состояние.
+     *
+     * @param meters Расстояние в метрах для добавления.
      */
     fun addDistance(meters: Float) {
         if (!isTripStarted.value) return
@@ -228,83 +185,97 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     }
 
     /**
-     * Обновляет внутреннее состояние на основе пройденного расстояния.
+	 * Рассчитывает остаток топлива на основе пройденного расстояния и нормы расхода.
+	 * Учитывает сезонные коэффициенты (зимний и весенний периоды), увеличивающие расход.
+	 *
+	 * @param traveledKm Пройденное расстояние в километрах.
+	 * @param fuelStd Базовая норма расхода топлива на 100 км.
+	 * @return Рассчитанный остаток топлива. Если норма расхода не задана, возвращает базовый остаток.
+	 */
+    private fun calculateRemainingFuel(traveledKm: Float, fuelStd: Float): Float {
+        if (fuelStd <= 0) return baseFuel
+        var factor = 1.0f
+        if (isWinter.value) factor += 0.1f
+        if (isSpring.value) factor += 0.1f
+        // Расход = (дистанция * (норма * коэффициенты)) / 100
+        val fuelConsumed = (traveledKm * (fuelStd * factor)) / 100f
+        return (baseFuel - fuelConsumed).coerceAtLeast(0f)
+    }
+
+    /**
+     * Обновляет внутреннее состояние и поля на основе переданного расстояния.
+     *
+     * @param currentDist Текущее общее расстояние поездки в метрах.
      */
     private fun updateStateFromDistance(currentDist: Float) {
         totalDistance.floatValue = currentDist
         
-        val traveledKm = currentDist / METERS_PER_KM
+        val traveledKm = currentDist / 1000f
         val currentTotal = baseKm + traveledKm
         
-        updateField(ID_KM, formatDecimal(currentTotal))
-        updateField(ID_AVG_SPEED, calculateAverageSpeed(currentDist))
+        updateFieldIfChanged(0, String.format(Locale.US, "%.2f", currentTotal))
+        updateFieldIfChanged(3, calculateAverageSpeed(currentDist))
         
-        val startTime = repository.getStartTime()
-        val durationMillis = if (startTime > 0) System.currentTimeMillis() - startTime else 0L
-        
-        val fuelStd = fields.find { it.id == ID_FUEL_STD }?.value?.toFloatOrNull() ?: 0f
-        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd, durationMillis)
-        updateField(ID_FUEL, formatDecimal(remainingFuel))
+        val fuelStd = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
+        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd)
+        updateFieldIfChanged(1, String.format(Locale.US, "%.2f", remainingFuel))
     }
 
-    /**
-     * Вычисляет среднюю скорость поездки.
-     */
     private fun calculateAverageSpeed(distanceMeters: Float): String {
         val startTime = repository.getStartTime()
-        if (startTime == 0L || distanceMeters <= 0f) return "0.00"
+        // Не считаем скорость, если пройдено меньше 10 метров (защита от дрейфа при старте)
+        if (startTime == 0L || distanceMeters < 10f) return "0.00"
         
         val durationMillis = System.currentTimeMillis() - startTime
-        if (durationMillis < STABILIZATION_DURATION_MS) return "0.00"
+        // Минимум 2 секунды для корректного расчета
+        if (durationMillis < 2000) return "0.00" 
         
         val durationHours = durationMillis / (1000f * 60f * 60f)
-        val distanceKm = distanceMeters / METERS_PER_KM
+        val distanceKm = distanceMeters / 1000f
         val avgSpeed = distanceKm / durationHours
         
-        return if (avgSpeed > MAX_PLAUSIBLE_SPEED_KMH) "0.00" else String.format(Locale.US, "%.2f", avgSpeed)
+        // Ограничение максимальной скорости для отсечения ошибок GPS
+        return String.format(Locale.US, "%.2f", if (avgSpeed > 220f) 0f else avgSpeed)
     }
 
     /**
-     * Запускает поездку.
+     * Запускает процесс отслеживания поездки.
+     * Устанавливает флаг начала поездки, фиксирует текущие введённые значения километража
+     * и остатка топлива как базовые для последующих расчетов и сохраняет их в репозитории.
      */
     fun onStartTrip() {
         isTripStarted.value = true
         repository.saveTripStarted(true)
+        
+        // СБРОС ДИСТАНЦИИ ПЕРЕД НОВЫМ РЕЙСОМ
         totalDistance.floatValue = 0f
         repository.saveTotalDistance(0f)
-        
-        repository.saveStartTime(System.currentTimeMillis())
 
-        baseKm = fields.find { it.id == ID_KM }?.value?.toFloatOrNull() ?: 0f
-        baseFuel = fields.find { it.id == ID_FUEL }?.value?.toFloatOrNull() ?: 0f
+        repository.saveStartTime(System.currentTimeMillis())
         
-        repository.saveFieldValue(ID_KM, baseKm)
-        repository.saveFieldValue(ID_FUEL, baseFuel)
+        baseKm = fields.getOrNull(0)?.value?.toFloatOrNull() ?: 0f
+        baseFuel = fields.getOrNull(1)?.value?.toFloatOrNull() ?: 0f
+        repository.saveFieldValue("km", baseKm)
+        repository.saveFieldValue("fuel", baseFuel)
         
-        updateField(ID_AVG_SPEED, "0.00")
+        updateFieldIfChanged(3, "0.00")
     }
 
-    /**
-     * Останавливает поездку и сохраняет финальные данные.
-     */
     fun onStopTrip() {
-        val currentTripDist = totalDistance.floatValue
-        val traveledKm = currentTripDist / METERS_PER_KM
-        val fuelStd = fields.find { it.id == ID_FUEL_STD }?.value?.toFloatOrNull() ?: 0f
-
-        val startTime = repository.getStartTime()
-        val durationMillis = if (startTime > 0) System.currentTimeMillis() - startTime else 0L
-
+        val currentDist = repository.getTotalDistance()
+        val traveledKm = currentDist / 1000f
+        val fuelStd = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
+        
         val finalKm = baseKm + traveledKm
-        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd, durationMillis)
-        val avgSpeed = calculateAverageSpeed(currentTripDist)
+        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd)
+        val avgSpeed = calculateAverageSpeed(currentDist)
 
-        repository.saveFieldValue(ID_KM, finalKm)
-        repository.saveFieldValue(ID_FUEL, remainingFuel)
+        repository.saveFieldValue("km", finalKm)
+        repository.saveFieldValue("fuel", remainingFuel)
         repository.saveAvgSpeed(avgSpeed)
         repository.saveStartTime(0L)
         repository.saveTripStarted(false)
-
+        
         baseKm = finalKm
         baseFuel = remainingFuel
 
@@ -312,8 +283,13 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         repository.saveTotalDistance(0f)
         isTripStarted.value = false
 
-        updateField(ID_KM, formatDecimal(finalKm))
-        updateField(ID_FUEL, formatDecimal(remainingFuel))
-        updateField(ID_AVG_SPEED, avgSpeed)
+        updateFieldIfChanged(0, String.format(Locale.US, "%.2f", finalKm))
+        updateFieldIfChanged(1, String.format(Locale.US, "%.2f", remainingFuel))
+        updateFieldIfChanged(3, avgSpeed)
+    }
+
+    @SuppressLint("EmptySuperCall")
+	override fun onCleared() {
+        super.onCleared()
     }
 }
