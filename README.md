@@ -109,17 +109,30 @@
             <tr><td class="method-name">saveCurrentSpeed()</td><td>Кэширует последнюю мгновенную скорость для UI.</td></tr>
         </table>
     </div>
-    <div class="container">
-        <h1>Архитектура и логика TrackLit</h1>
-        <div class="mermaid">
-            graph TD
-                %% Слой UI
-                subgraph UI_Layer [Интерфейс Пользователя]
-                    A[MainActivity] -->|Нажатие Старт| B{Проверка GPS}
-                    B -- Выключен --> C[Диалог: Включите GPS]
-                    B -- Включен --> D[Запрос разрешений]
-                    D -->|Разрешено| E[Запуск LocationService]
-                end
+
+<head>
+    <meta charset="UTF-8">
+    <title>Блок-схема TrackLit</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: inline-block; min-width: 800px; }
+        h1 { color: #2c3e50; }
+        .mermaid { margin-top: 20px; }
+    </style>
+</head>
+
+<div class="container">
+<h1>Архитектура и логика TrackLit</h1>
+<div class="mermaid">
+    graph TD
+        %% Слой UI
+        subgraph UI_Layer [Интерфейс Пользователя]
+            A[MainActivity] -->|Нажатие Старт| B{Проверка GPS}
+            B -- Выключен --> C[Диалог: Включите GPS]
+            B -- Включен --> D[Запрос разрешений]
+            D -->|Разрешено| E[Запуск LocationService]
+        end
 
 %% Слой Сервиса
 subgraph Background_Service [Фоновая Служба]
