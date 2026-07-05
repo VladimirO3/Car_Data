@@ -58,7 +58,7 @@
 <h1>Документация приложения TrackLit</h1>
     <p>Это техническое описание архитектуры, классов и методов Android-приложения для учета пробега и расхода топлива.</p>
 
-    <div class="class-box">
+<div class="class-box">
         <h2>MainActivity</h2>
         <span class="tag">UI Layer</span>
         <p>Центральная Activity приложения. Управляет жизненным циклом UI (Jetpack Compose), запрашивает разрешения и контролирует запуск/остановку служб.</p>
@@ -72,7 +72,6 @@
             <tr><td class="method-name">showRationaleDialog()</td><td>Показывает пользователю обоснование необходимости разрешений на геолокацию.</td></tr>
         </table>
     </div>
-
     <div class="class-box">
         <h2>MainViewModel</h2>
         <span class="tag">Business Logic Layer</span>
@@ -87,7 +86,6 @@
             <tr><td class="method-name">refreshDistance()</td><td>Обновляет UI-поля на основе актуальных данных от GPS-службы.</td></tr>
         </table>
     </div>
-
     <div class="class-box">
         <h2>LocationService</h2>
         <span class="tag">Background Layer</span>
@@ -99,7 +97,6 @@
             <tr><td class="method-name">onStartCommand()</td><td>Создает уведомление в шторке и переводит службу в режим Foreground.</td></tr>
         </table>
     </div>
-
     <div class="class-box">
         <h2>SettingsRepository</h2>
         <span class="tag">Data Layer</span>
