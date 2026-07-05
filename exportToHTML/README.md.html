@@ -1,0 +1,83 @@
+<html>
+<head>
+<title>README.md</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+README.md</font>
+</center></td></tr></table>
+<pre><span class="s0"># </span><span class="s2">My app for collecting data on vehicle movement </span>
+<span class="s1">&lt;img src=&quot;2026-07-03_22-48-20.png&quot; width=&quot;700&quot; alt=&quot;Описание&quot;&gt;</span>
+    <span class="s1">&lt;h1&gt;Проект TrackLit&lt;/h1&gt;</span>
+    <span class="s1">&lt;p&gt;Интеллектуальный GPS-трекер для учета поездок и топлива&lt;/p&gt;</span>
+<span class="s1">&lt;/header&gt;</span>
+
+<span class="s1">&lt;div class=&quot;card&quot;&gt;</span>
+    <span class="s1">&lt;h2&gt;Общее описание&lt;/h2&gt;</span>
+    <span class="s1">&lt;p&gt;&lt;strong&gt;TrackLit&lt;/strong&gt; — это специализированное Android-приложение для водителей. Оно автоматизирует процесс ведения путевого листа, отслеживая пройденную дистанцию в реальном времени через GPS и рассчитывая остаток топлива с учетом различных условий эксплуатации.&lt;/p&gt;</span>
+    <span class="s1">&lt;div&gt;</span>
+        <span class="s1">&lt;span class=&quot;tag&quot;&gt;Kotlin&lt;/span&gt;</span>
+        <span class="s1">&lt;span class=&quot;tag&quot;&gt;Jetpack Compose&lt;/span&gt;</span>
+        <span class="s1">&lt;span class=&quot;tag&quot;&gt;Foreground Service&lt;/span&gt;</span>
+        <span class="s1">&lt;span class=&quot;tag&quot;&gt;GPS/Fused Location&lt;/span&gt;</span>
+    <span class="s1">&lt;/div&gt;</span>
+<span class="s1">&lt;/div&gt;</span>
+
+<span class="s1">&lt;div class=&quot;card&quot;&gt;</span>
+    <span class="s1">&lt;h2&gt;Архитектура кода&lt;/h2&gt;</span>
+    <span class="s1">&lt;ul&gt;</span>
+        <span class="s1">&lt;li&gt;&lt;strong&gt;MainActivity.kt:&lt;/strong&gt; Точка входа. Управляет UI на Jetpack Compose и запрашивает разрешения (Location permissions).&lt;/li&gt;</span>
+        <span class="s1">&lt;li&gt;&lt;strong&gt;LocationService.kt:&lt;/strong&gt; &quot;Сердце&quot; приложения. Фоновая служба, которая продолжает работать, даже когда приложение свернуто. Получает координаты от спутников.&lt;/li&gt;</span>
+        <span class="s1">&lt;li&gt;&lt;strong&gt;MainViewModel.kt:&lt;/strong&gt; Обрабатывает бизнес-логику. Считает расход, обновляет данные и взаимодействует с UI.&lt;/li&gt;</span>
+        <span class="s1">&lt;li&gt;&lt;strong&gt;SettingsRepository.kt:&lt;/strong&gt; Отвечает за сохранение данных (пробег, топливо) в памяти устройства (SharedPreferences).&lt;/li&gt;</span>
+    <span class="s1">&lt;/ul&gt;</span>
+<span class="s1">&lt;/div&gt;</span>
+
+<span class="s1">&lt;div class=&quot;card&quot;&gt;</span>
+    <span class="s1">&lt;h2&gt;Ключевые функции&lt;/h2&gt;</span>
+    <span class="s1">&lt;div class=&quot;feature-list&quot;&gt;</span>
+        <span class="s1">&lt;div&gt;</span>
+            <span class="s1">&lt;h3&gt;Отслеживание&lt;/h3&gt;</span>
+            <span class="s1">&lt;p&gt;Использование &lt;code&gt;FusedLocationProviderClient&lt;/code&gt; для высокоточного определения координат и автоматического подсчета пробега.&lt;/p&gt;</span>
+        <span class="s1">&lt;/div&gt;</span>
+        <span class="s1">&lt;div&gt;</span>
+            <span class="s1">&lt;h3&gt;Умный расчет топлива&lt;/h3&gt;</span>
+            <span class="s1">&lt;p&gt;Формула расхода учитывает базовую норму + коэффициенты (Зима/Весна), которые добавляют 10% к затратам.&lt;/p&gt;</span>
+        <span class="s1">&lt;/div&gt;</span>
+        <span class="s1">&lt;div&gt;</span>
+            <span class="s1">&lt;h3&gt;Адаптивный UI&lt;/h3&gt;</span>
+            <span class="s1">&lt;p&gt;Интерфейс на Jetpack Compose корректно отображается как в портретном, так и в ландшафтном режиме (удобно для крепления в авто).&lt;/p&gt;</span>
+        <span class="s1">&lt;/div&gt;</span>
+        <span class="s1">&lt;div&gt;</span>
+            <span class="s1">&lt;h3&gt;Безопасность данных&lt;/h3&gt;</span>
+            <span class="s1">&lt;p&gt;Данные сохраняются при каждом обновлении дистанции. Даже при перезагрузке телефона прогресс поездки не будет потерян.&lt;/p&gt;</span>
+        <span class="s1">&lt;/div&gt;</span>
+    <span class="s1">&lt;/div&gt;</span>
+<span class="s1">&lt;/div&gt;</span>
+
+<span class="s1">&lt;div class=&quot;card&quot;&gt;</span>
+    <span class="s1">&lt;h2&gt;Технические особенности&lt;/h2&gt;</span>
+    <span class="s1">&lt;ul&gt;</span>
+        <span class="s1">&lt;li&gt;Минимальная версия Android: &lt;strong&gt;10.0 (API 30)&lt;/strong&gt;.&lt;/li&gt;</span>
+        <span class="s1">&lt;li&gt;Использование &lt;strong&gt;Foreground Service&lt;/strong&gt; с уведомлением для предотвращения остановки системы.&lt;/li&gt;</span>
+        <span class="s1">&lt;li&gt;Поддержка &lt;strong&gt;Material Design 3&lt;/strong&gt; для современного внешнего вида.&lt;/li&gt;</span>
+    <span class="s1">&lt;/ul&gt;</span>
+<span class="s1">&lt;/div&gt;</span>
+
+<span class="s1">&lt;footer&gt;</span>
+    <span class="s1">&lt;p&gt;&amp;copy; 2026 TrackLit Project. Разработано для оптимизации работы водителей.&lt;/p&gt;</span>
+<span class="s1">&lt;/footer&gt;</span>
+
+<span class="s1">&lt;/body&gt;</span>
+<span class="s1">&lt;/html&gt;</span>
+</pre>
+</body>
+</html>
