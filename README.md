@@ -124,53 +124,7 @@
 
 <div class="container">
     <h1>Архитектура и логика TrackLit</h1>
-        <div class="mermaid">
-            graph TD
-            %% Слой UI
-            subgraph UI_Layer [Интерфейс Пользователя]
-                A[MainActivity] -->|Нажатие Старт| B{Проверка GPS}
-                B -- Выключен --> C[Диалог: Включите GPS]
-                B -- Включен --> D[Запрос разрешений]
-                D -->|Разрешено| E[Запуск LocationService]
-            end
-
-   %% Слой Сервиса
-   subgraph Background_Service [Фоновая Служба]
-       E --> F[Foreground Notification]
-       F --> G[FusedLocationProvider]
-       G -->|Координаты| H[Фильтрация помех]
-       H -->|Дистанция > 3м| I[Обновление дистанции в SharedPrefs]
-   end
-
-   %% Слой Данных
-   subgraph Data_Layer [Хранилище Данных]
-       I --> J[(SettingsRepository)]
-       J -->|Событие изменения| K[PreferenceChangeListener]
-   end
-
-   %% Слой Логики
-   subgraph Logic_Layer [Бизнес Логика]
-       K --> L[MainViewModel]
-       L --> M[Расчет среднего расхода]
-       L --> N[Расчет средней скорости]
-       M -->|Зима/Весна +10%| O[Обновление UI State]
-       N --> O
-   end
-
-   %% Обратная связь
-   O -->|Compose Recomposition| A
-
-   %% Стилизация
-   style A fill:#3498db,color:#fff
-   style E fill:#e67e22,color:#fff
-   style J fill:#2ecc71,color:#fff
-   style L fill:#9b59b6,color:#fff
-   style C fill:#e74c3c,color:#fff
-   </div>
-</div>
-<script>
-    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
-</script>
+    <img src="ligicTrackLit.png" width="700" alt="Описание">
 
 <footer>
     <p>&copy; 2026 TrackLit Project. Разработано для оптимизации работы водителей.</p>
