@@ -1,21 +1,7 @@
 # Приложение для сбора данных транспортных средств.
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <title>Блок-схема TrackLit</title>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-    <style>
-        body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; }
-        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: inline-block; min-width: 800px; }
-        h1 { color: #2c3e50; }
-        .mermaid { margin-top: 20px; }
-    </style>
-</head>
 <img src="2026-07-03_22-48-20.png" width="700" alt="Описание">
     <h1>Проект TrackLit</h1>
     <p>Интеллектуальный GPS-трекер для учета поездок и топлива</p>
-</header>
-</body>
 <div class="card">
     <h2>Общее описание</h2>
     <p><strong>TrackLit</strong> — это специализированное Android-приложение для водителей. Оно автоматизирует процесс ведения путевого листа, отслеживая пройденную дистанцию в реальном времени через GPS и рассчитывая остаток топлива с учетом различных условий эксплуатации.</p>
@@ -124,11 +110,9 @@
 
 <div class="container">
     <h1>Архитектура и логика TrackLit</h1>
-    <img src="ligicTrackLit.png" width="700" alt="Описание">
+    <img src="logicTrackLit.png" width="700" alt="Описание">
 
 <footer>
     <p>&copy; 2026 TrackLit Project. Разработано для оптимизации работы водителей.</p>
 </footer>
 
-</body>
-</html>
