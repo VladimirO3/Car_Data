@@ -1,5 +1,5 @@
 # Приложение для сбора данных транспортных средств.
-<img src="2026-07-03_22-48-20.png" width="700" alt="Описание">
+<img src="2026-07-03_22-48-20.png" width="1000" alt="Описание">
     <h1>Проект TrackLit</h1>
     <p>Интеллектуальный GPS-трекер для учета поездок и топлива</p>
 <div class="card">
@@ -110,7 +110,7 @@
 
 <div class="container">
     <h1>Архитектура и логика TrackLit</h1>
-    <img src="logicTrackLit.png" width="700" alt="Описание">
+    <img src="logicTrackLit.png" width="1000" alt="Описание">
 
 <footer>
     <p>&copy; 2026 TrackLit Project. Разработано для оптимизации работы водителей.</p>
