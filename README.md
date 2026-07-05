@@ -1,4 +1,5 @@
-# Приложение для сбора данных транспортных средств. 
+# Приложение для сбора данных транспортных средств.
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Блок-схема TrackLit</title>
@@ -14,7 +15,7 @@
     <h1>Проект TrackLit</h1>
     <p>Интеллектуальный GPS-трекер для учета поездок и топлива</p>
 </header>
-
+</body>
 <div class="card">
     <h2>Общее описание</h2>
     <p><strong>TrackLit</strong> — это специализированное Android-приложение для водителей. Оно автоматизирует процесс ведения путевого листа, отслеживая пройденную дистанцию в реальном времени через GPS и рассчитывая остаток топлива с учетом различных условий эксплуатации.</p>
@@ -122,54 +123,54 @@
     </div>
 
 <div class="container">
-        <h1>Архитектура и логика TrackLit</h1>
+    <h1>Архитектура и логика TrackLit</h1>
         <div class="mermaid">
             graph TD
-                %% Слой UI
-                subgraph UI_Layer [Интерфейс Пользователя]
-                    A[MainActivity] -->|Нажатие Старт| B{Проверка GPS}
-                    B -- Выключен --> C[Диалог: Включите GPS]
-                    B -- Включен --> D[Запрос разрешений]
-                    D -->|Разрешено| E[Запуск LocationService]
-                end
+            %% Слой UI
+            subgraph UI_Layer [Интерфейс Пользователя]
+                A[MainActivity] -->|Нажатие Старт| B{Проверка GPS}
+                B -- Выключен --> C[Диалог: Включите GPS]
+                B -- Включен --> D[Запрос разрешений]
+                D -->|Разрешено| E[Запуск LocationService]
+            end
 
-                %% Слой Сервиса
-                subgraph Background_Service [Фоновая Служба]
-                    E --> F[Foreground Notification]
-                    F --> G[FusedLocationProvider]
-                    G -->|Координаты| H[Фильтрация помех]
-                    H -->|Дистанция > 3м| I[Обновление дистанции в SharedPrefs]
-                end
+   %% Слой Сервиса
+   subgraph Background_Service [Фоновая Служба]
+       E --> F[Foreground Notification]
+       F --> G[FusedLocationProvider]
+       G -->|Координаты| H[Фильтрация помех]
+       H -->|Дистанция > 3м| I[Обновление дистанции в SharedPrefs]
+   end
 
-                %% Слой Данных
-                subgraph Data_Layer [Хранилище Данных]
-                    I --> J[(SettingsRepository)]
-                    J -->|Событие изменения| K[PreferenceChangeListener]
-                end
+   %% Слой Данных
+   subgraph Data_Layer [Хранилище Данных]
+       I --> J[(SettingsRepository)]
+       J -->|Событие изменения| K[PreferenceChangeListener]
+   end
 
-                %% Слой Логики
-                subgraph Logic_Layer [Бизнес Логика]
-                    K --> L[MainViewModel]
-                    L --> M[Расчет среднего расхода]
-                    L --> N[Расчет средней скорости]
-                    M -->|Зима/Весна +10%| O[Обновление UI State]
-                    N --> O
-                end
+   %% Слой Логики
+   subgraph Logic_Layer [Бизнес Логика]
+       K --> L[MainViewModel]
+       L --> M[Расчет среднего расхода]
+       L --> N[Расчет средней скорости]
+       M -->|Зима/Весна +10%| O[Обновление UI State]
+       N --> O
+   end
 
-                %% Обратная связь
-                O -->|Compose Recomposition| A
+   %% Обратная связь
+   O -->|Compose Recomposition| A
 
-                %% Стилизация
-                style A fill:#3498db,color:#fff
-                style E fill:#e67e22,color:#fff
-                style J fill:#2ecc71,color:#fff
-                style L fill:#9b59b6,color:#fff
-                style C fill:#e74c3c,color:#fff
-        </div>
-    </div>
-    <script>
-        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
-    </script>
+   %% Стилизация
+   style A fill:#3498db,color:#fff
+   style E fill:#e67e22,color:#fff
+   style J fill:#2ecc71,color:#fff
+   style L fill:#9b59b6,color:#fff
+   style C fill:#e74c3c,color:#fff
+   </div>
+</div>
+<script>
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+</script>
 
 <footer>
     <p>&copy; 2026 TrackLit Project. Разработано для оптимизации работы водителей.</p>
