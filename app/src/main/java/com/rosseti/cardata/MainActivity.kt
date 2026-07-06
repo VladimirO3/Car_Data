@@ -462,7 +462,7 @@ fun MainLocationContent(
                     )
                 }
                 Text(
-                    text = String.format(Locale.US, "Спидометр: %.2f км | Топливо: %.2f л | Макс. скорость: %.2f км/ч",
+                    text = String.format(Locale.US, "Спидометр: %.2f км | Топливо: %.2f л | Макс. скорость: %.0f км/ч",
                                         currentTotalKm, currentRemainingFuel, currentMaxSpeed),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
@@ -565,7 +565,7 @@ fun MainLocationContent(
                     )
                 }
                 Text(
-                    text = String.format(Locale.US, "Спидометр: %.2f км\nОстаток топлива: %.2f л\nМаксимальная скорость: %.2f км/ч",
+                    text = String.format(Locale.US, "Спидометр: %.2f км\nОстаток топлива: %.2f л\nМаксимальная скорость: %.0f км/ч",
                                         currentTotalKm, currentRemainingFuel, currentMaxSpeed),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,

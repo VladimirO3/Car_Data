@@ -146,6 +146,13 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     }
 
     /**
+     * Форматирует число с плавающей запятой в строку без знаков после запятой (целое).
+     */
+    private fun formatInteger(value: Float): String {
+        return if (value == 0f) "0" else String.format(Locale.US, "%.0f", value)
+    }
+
+    /**
      * Вычисляет остаток топлива на основе пройденного расстояния, нормы расхода и времени работы двигателя.
      */
     private fun calculateRemainingFuel(traveledKm: Float, fuelStd: Float, durationMillis: Long): Float {
@@ -236,7 +243,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val savedMaxSpeed = repository.getMaxSpeed().toFloatOrNull() ?: 0f
         
         if (currentSpeed > savedMaxSpeed) {
-            repository.saveMaxSpeed(formatDecimal(currentSpeed))
+            repository.saveMaxSpeed(formatInteger(currentSpeed))
         }
         
         updateField(ID_MAX_SPEED, repository.getMaxSpeed())
@@ -262,7 +269,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         repository.saveTripStarted(true)
         totalDistance.floatValue = 0f
         repository.saveTotalDistance(0f)
-        repository.saveMaxSpeed("0.00")
+        repository.saveMaxSpeed("0")
         
         repository.saveStartTime(System.currentTimeMillis())
 
@@ -272,7 +279,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         repository.saveFieldValue(ID_KM, baseKm)
         repository.saveFieldValue(ID_FUEL, baseFuel)
         
-        updateField(ID_MAX_SPEED, "0.00")
+        updateField(ID_MAX_SPEED, "0")
     }
 
     /**

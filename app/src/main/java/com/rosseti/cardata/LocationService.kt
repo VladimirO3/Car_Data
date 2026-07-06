@@ -24,9 +24,18 @@ class LocationService : Service() {
     private lateinit var repository: SettingsRepository
     private var lastLocation: Location? = null
 
+    companion object {
+        private const val NOTIFICATION_ID = 1
+        private const val CHANNEL_ID = "location_channel"
+    }
+
     override fun onCreate() {
         super.onCreate()
         AppLogger.d(this, "Service onCreate - Инициализация службы")
+        
+        // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
+        startForegroundServiceSafe()
+        
         repository = SettingsRepository(applicationContext)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         
@@ -61,12 +70,12 @@ class LocationService : Service() {
                         // Обновляем максимальную скорость, если текущая выше (и правдоподобна)
                         val savedMax = repository.getMaxSpeed().toFloatOrNull() ?: 0f
                         if (speedKmh > savedMax && speedKmh < 250f) {
-                            repository.saveMaxSpeed(String.format(java.util.Locale.US, "%.2f", speedKmh))
+                            repository.saveMaxSpeed(String.format(java.util.Locale.US, "%.0f", speedKmh))
                             AppLogger.d(applicationContext, "Новый рекорд скорости: $speedKmh км/ч")
                         }
                         
                         // Игнорируем перемещения менее 1 метра для фильтрации дрейфа одометра
-                        if (distance >= 1.0f) {
+                        if (distance >= 2.0f) {
                             val currentTotal = repository.getTotalDistance()
                             val newTotal = currentTotal + distance
                             repository.saveTotalDistance(newTotal)
@@ -80,17 +89,21 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        AppLogger.d(this, "Service onStartCommand - Запуск Foreground")
-        val channelId = "location_channel"
+        AppLogger.d(this, "Service onStartCommand - Запуск обновления координат")
+        startLocationUpdates()
+        return START_STICKY
+    }
+
+    private fun startForegroundServiceSafe() {
         val channel = NotificationChannel(
-            channelId, 
-            "GPS Tracking", 
+            CHANNEL_ID,
+            "GPS Tracking",
             NotificationManager.IMPORTANCE_LOW
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
 
-        val notification = NotificationCompat.Builder(this, channelId)
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("TrackLit GPS-трекер")
             .setContentText("Идет отслеживание рейса...")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
@@ -98,12 +111,16 @@ class LocationService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        Log.d("LocationService", "Starting foreground with type location")
-            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        
-        startLocationUpdates()
-        
-        return START_STICKY
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            AppLogger.d(this, "startForeground вызван успешно")
+        } catch (e: Exception) {
+            AppLogger.e(this, "Ошибка при вызове startForeground", e)
+        }
     }
 
     private fun startLocationUpdates() {

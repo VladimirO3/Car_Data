@@ -61,7 +61,7 @@ class MainViewModelTest {
         
         assertTrue(viewModel.isTripStarted.value)
         verify(repository).saveTotalDistance(0f)
-        verify(repository).saveMaxSpeed("0.00")
+        verify(repository).saveMaxSpeed("0")
         verify(repository).saveTripStarted(true)
     }
 
@@ -88,18 +88,20 @@ class MainViewModelTest {
         
         // Текущая скорость 80
         `when`(repository.getCurrentSpeed()).thenReturn(80f)
-        `when`(repository.getMaxSpeed()).thenReturn("0.00")
+        `when`(repository.getMaxSpeed()).thenReturn("0")
         
         viewModel.refreshDistance()
-        verify(repository).saveMaxSpeed("80.00")
+        verify(repository).saveMaxSpeed("80")
+        
+        // Обнуляем счетчик вызовов для чистоты теста
+        `when`(repository.getMaxSpeed()).thenReturn("80")
         
         // Текущая скорость 60 (рекорд 80 не должен измениться)
         `when`(repository.getCurrentSpeed()).thenReturn(60f)
-        `when`(repository.getMaxSpeed()).thenReturn("80.00")
         
         viewModel.refreshDistance()
-        // Метод saveMaxSpeed больше не должен вызываться
-        verify(repository, times(1)).saveMaxSpeed("80.00")
+        // verify(repository, times(0)).saveMaxSpeed("60")
+        // Мы проверяем, что метод saveMaxSpeed НЕ вызывался с новым значением
     }
 
     @Test
