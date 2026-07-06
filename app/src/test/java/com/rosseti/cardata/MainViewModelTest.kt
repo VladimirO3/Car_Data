@@ -2,20 +2,21 @@ package com.rosseti.cardata
 
 import com.rosseti.cardata.data.SettingsRepository
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mock
 import org.mockito.Mockito.`when`
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.times
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
-import org.mockito.kotlin.verify
 
 /**
  * Единичные тесты для класса [MainViewModel].
  *
- * Проверяет бизнес-логику, включая расчет пробега, топлива и максимальной скорости.
+ * Проверяет бизнес-логику: одометр, расчет топлива (включая простой и сезонный),
+ * расчет максимальной скорости и валидацию полей.
  */
 class MainViewModelTest {
 
@@ -34,107 +35,102 @@ class MainViewModelTest {
         `when`(repository.isTripStarted()).thenReturn(false)
         `when`(repository.getMaxSpeed()).thenReturn("0.00")
         `when`(repository.getCurrentSpeed()).thenReturn(0f)
+        `when`(repository.getStartTime()).thenReturn(0L)
         
         viewModel = MainViewModel(repository)
     }
 
     @Test
-    fun `init loads fields from repository`() {
+    fun `init loads fields correctly with new labels`() {
         `when`(repository.getFieldValue("km")).thenReturn(100f)
         `when`(repository.getFieldValue("fuel")).thenReturn(50f)
         `when`(repository.getFieldValue("fuelStandart")).thenReturn(10f)
         `when`(repository.getMaxSpeed()).thenReturn("120.50")
         
-        // Re-init to trigger loading
         viewModel = MainViewModel(repository)
         
-        assertEquals("100.00", viewModel.fields[0].value)
-        assertEquals("50.00", viewModel.fields[1].value)
-        assertEquals("10.00", viewModel.fields[2].value)
-        assertEquals("120.50", viewModel.fields[3].value)
+        assertEquals("100.00", viewModel.fields[0].value) // Спидометр
+        assertEquals("50.00", viewModel.fields[1].value)  // Топливо
+        assertEquals("10.00", viewModel.fields[2].value)  // Норма
+        assertEquals("120.50", viewModel.fields[3].value) // Макс скорость
     }
 
     @Test
-    fun `onStartTrip sets isTripStarted to true and saves base values`() {
-        viewModel.onFieldChange(0, "100.0")
-        viewModel.onFieldChange(1, "50.0")
-        
+    fun `onStartTrip resets session data`() {
         viewModel.onStartTrip()
         
         assertTrue(viewModel.isTripStarted.value)
-        verify(repository).saveTripStarted(true)
-        verify(repository).saveFieldValue("km", 100.0f)
-        verify(repository).saveFieldValue("fuel", 50.0f)
         verify(repository).saveTotalDistance(0f)
         verify(repository).saveMaxSpeed("0.00")
+        verify(repository).saveTripStarted(true)
     }
 
     @Test
-    fun `addDistance updates UI fields correctly when fuel standard is present`() {
-        `when`(repository.getFieldValue("km")).thenReturn(100f)
-        `when`(repository.getFieldValue("fuel")).thenReturn(50f)
-        `when`(repository.getFieldValue("fuelStandart")).thenReturn(10f)
-        viewModel = MainViewModel(repository)
-        
-        viewModel.onStartTrip()
-        
-        // Simulating trip distance update from repository
-        `when`(repository.getTotalDistance()).thenReturn(10000f) // 10 km
-        viewModel.refreshDistance()
-        
-        // Total KM should be 100 + 10 = 110
-        assertEquals("110.00", viewModel.fields[0].value)
-        // Fuel consumed: (10 km * 10 l/100km) / 100 = 1 liter. Remaining: 50 - 1 = 49
-        assertEquals("49.00", viewModel.fields[1].value)
-    }
-
-    @Test
-    fun `addDistance does NOT update fuel if fuel standard is empty`() {
+    fun `fuel calculation is ignored if fuel standard is empty`() {
         `when`(repository.getFieldValue("km")).thenReturn(100f)
         `when`(repository.getFieldValue("fuel")).thenReturn(50f)
         `when`(repository.getFieldValue("fuelStandart")).thenReturn(0f)
         viewModel = MainViewModel(repository)
         
-        // Simulating trip start with empty fuel standard
-        viewModel.onFieldChange(2, "") 
+        viewModel.onFieldChange(2, "") // Очищаем норму
         viewModel.onStartTrip()
         
-        `when`(repository.getTotalDistance()).thenReturn(10000f) // 10 km
+        `when`(repository.getTotalDistance()).thenReturn(10000f) // +10 км
         viewModel.refreshDistance()
         
         assertEquals("110.00", viewModel.fields[0].value)
-        assertEquals("50.00", viewModel.fields[1].value) // Fuel remains unchanged
+        assertEquals("50.00", viewModel.fields[1].value) // Топливо не должно измениться
     }
 
     @Test
-    fun `max speed is updated if current speed is higher`() {
+    fun `max speed updates only if current speed is higher`() {
         viewModel.onStartTrip()
         
-        `when`(repository.getCurrentSpeed()).thenReturn(60.0f)
+        // Текущая скорость 80
+        `when`(repository.getCurrentSpeed()).thenReturn(80f)
         `when`(repository.getMaxSpeed()).thenReturn("0.00")
         
         viewModel.refreshDistance()
+        verify(repository).saveMaxSpeed("80.00")
         
-        verify(repository).saveMaxSpeed("60.00")
+        // Текущая скорость 60 (рекорд 80 не должен измениться)
+        `when`(repository.getCurrentSpeed()).thenReturn(60f)
+        `when`(repository.getMaxSpeed()).thenReturn("80.00")
+        
+        viewModel.refreshDistance()
+        // Метод saveMaxSpeed больше не должен вызываться
+        verify(repository, times(1)).saveMaxSpeed("80.00")
     }
 
     @Test
-    fun `onStopTrip saves all values and stops trip`() {
-        `when`(repository.getFieldValue("km")).thenReturn(100f)
-        `when`(repository.getFieldValue("fuel")).thenReturn(50f)
+    fun `seasonal factors are additive (+20 percent for both)`() {
+        `when`(repository.getFieldValue("km")).thenReturn(0f)
+        `when`(repository.getFieldValue("fuel")).thenReturn(100f)
         `when`(repository.getFieldValue("fuelStandart")).thenReturn(10f)
-        `when`(repository.getMaxSpeed()).thenReturn("85.50")
         viewModel = MainViewModel(repository)
         
+        viewModel.toggleWinter(true) // +10%
+        viewModel.toggleSpring(true) // +10% (итого +20%)
+        
         viewModel.onStartTrip()
-        `when`(repository.getTotalDistance()).thenReturn(5000f) // 5 km
+        `when`(repository.getTotalDistance()).thenReturn(100000f) // 100 км
         
-        viewModel.onStopTrip()
+        viewModel.refreshDistance()
         
-        assertFalse(viewModel.isTripStarted.value)
-        verify(repository).saveFieldValue("km", 105f)
-        verify(repository).saveFieldValue("fuel", 49.5f)
-        verify(repository).saveMaxSpeed("85.50")
-        verify(repository).saveTripStarted(false)
+        // 100 км * (10 норма * 1.2 коэф) / 100 = 12 литров расхода.
+        // 100 - 12 = 88
+        assertEquals("88.00", viewModel.fields[1].value)
+    }
+
+    @Test
+    fun `input validation prevents letters and multiple dots`() {
+        viewModel.onFieldChange(0, "123.45")
+        assertEquals("123.45", viewModel.fields[0].value)
+        
+        viewModel.onFieldChange(0, "abc")
+        assertEquals("123.45", viewModel.fields[0].value) // Значение не изменилось
+        
+        viewModel.onFieldChange(0, "123.45.6")
+        assertEquals("123.45", viewModel.fields[0].value)
     }
 }

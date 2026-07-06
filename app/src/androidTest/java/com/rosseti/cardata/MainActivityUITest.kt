@@ -1,6 +1,7 @@
 package com.rosseti.cardata
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -12,7 +13,6 @@ import org.junit.runner.RunWith
 /**
  * Тесты UI для [MainActivity] с использованием тестовых API Jetpack Compose.
  */
-@Suppress("DEPRECATION")
 @RunWith(AndroidJUnit4::class)
 class MainActivityUITest {
 
@@ -24,16 +24,17 @@ class MainActivityUITest {
         // Проверка заголовка
         composeTestRule.onNodeWithText("TrackLit").assertExists()
         
-        // Проверка наличия основных полей
-        composeTestRule.onNodeWithText("Километраж").assertExists()
+        // Проверка наличия основных полей (используем новые названия)
+        composeTestRule.onNodeWithText("Спидометр(км)").assertExists()
         composeTestRule.onNodeWithText("Остаток топлива").assertExists()
         composeTestRule.onNodeWithText("Норма расхода топлива").assertExists()
+        composeTestRule.onNodeWithText("Макс. скорость (км/ч)").assertExists()
     }
 
     @Test
     fun testFieldInputAndValidation() {
-        // Ввод данных в поле километража
-        composeTestRule.onNodeWithText("Километраж").performTextInput("12345.67")
+        // Ввод данных в поле спидометра
+        composeTestRule.onNodeWithText("Спидометр(км)").performTextInput("12345.67")
         
         // Проверка, что текст отобразился
         composeTestRule.onNodeWithText("12345.67").assertExists()
@@ -44,27 +45,22 @@ class MainActivityUITest {
         // Проверка наличия переключателей режимов
         composeTestRule.onNodeWithText("Зима (+10%)").assertExists()
         composeTestRule.onNodeWithText("Весна (+10%)").assertExists()
-        
-        // Клик по переключателю
-        composeTestRule.onNodeWithText("Зима (+10%)").performClick()
     }
 
     @Test
     fun testTripStartedMarkerVisibility() {
-        // Изначально маркера нет
+        // Изначально маркера нет (в левом верхнем углу)
         composeTestRule.onNodeWithText("● РЕЙС").assertDoesNotExist()
 
         // Кнопка Старт должна существовать
         composeTestRule.onNodeWithText("Старт").assertExists()
-        
-        // Примечание: Мы не можем легко симулировать нажатие Старт здесь, так как оно 
-        // запускает Foreground Service и запрашивает GPS, что требует мокирования 
-        // или специальных разрешений в тесте. Но мы проверили статический UI.
     }
 
     @Test
-    fun testCompactLayoutInLandscape() {
-        // Переключаем в альбомный режим (Landscape)
-        // В реальном тесте это требует изменения конфигурации устройства
+    fun testLogoAndExitIconExistence() {
+        // Проверка наличия логотипа (по описанию, если добавлено)
+        composeTestRule.onNodeWithContentDescription("Logo").assertExists()
+        // Проверка наличия иконки выхода
+        composeTestRule.onNodeWithContentDescription("Выход").assertExists()
     }
 }

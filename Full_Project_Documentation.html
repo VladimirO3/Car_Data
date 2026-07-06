@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrackLit - Полная техническая документация</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --bg-color: #f8f9fa;
+            --text-color: #333;
+            --border-color: #dee2e6;
+        }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; line-height: 1.6; color: var(--text-color); background-color: var(--bg-color); margin: 0; padding: 0; }
+        .sidebar { position: fixed; width: 250px; height: 100vh; background: var(--primary-color); color: white; padding: 20px; overflow-y: auto; }
+        .sidebar h2 { font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom: 20px; }
+        .sidebar a { color: #bdc3c7; text-decoration: none; display: block; padding: 8px 0; font-size: 0.9rem; transition: 0.3s; }
+        .sidebar a:hover { color: white; padding-left: 10px; }
+        .content { margin-left: 290px; padding: 40px; max-width: 1000px; }
+
+        section { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        h1 { color: var(--primary-color); font-size: 2.5rem; margin-top: 0; }
+        h2 { color: var(--secondary-color); border-bottom: 2px solid var(--bg-color); padding-bottom: 10px; margin-top: 0; }
+        h3 { color: var(--primary-color); margin-top: 25px; background: #ebf5fb; padding: 10px; border-radius: 6px; }
+
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid var(--border-color); padding: 12px; text-align: left; font-size: 0.95rem; }
+        th { background-color: #f1f8ff; color: var(--primary-color); font-weight: 600; }
+
+        .code { font-family: 'Consolas', 'Monaco', monospace; background: #fdf2f2; color: #c0392b; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .method-table td:first-child { font-weight: bold; color: #2980b9; font-family: monospace; }
+        .tag { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
+        .tag-ui { background: #d1ecf1; color: #0c5460; }
+        .tag-logic { background: #d4edda; color: #155724; }
+        .tag-service { background: #fff3cd; color: #856404; }
+        .tag-data { background: #f8d7da; color: #721c24; }
+
+        .feature-list { list-style: none; padding: 0; }
+        .feature-list li { margin-bottom: 10px; padding-left: 25px; position: relative; }
+        .feature-list li::before { content: '✓'; position: absolute; left: 0; color: #27ae60; font-weight: bold; }
+
+        footer { text-align: center; padding: 40px 0; color: #7f8c8d; font-size: 0.9rem; }
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .content { margin-left: 0; padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>TrackLit Docs</h2>
+        <a href="#overview">1. Обзор проекта</a>
+        <a href="#architecture">2. Архитектура</a>
+        <a href="#main-activity">3. MainActivity</a>
+        <a href="#viewmodel">4. MainViewModel</a>
+        <a href="#location-service">5. LocationService</a>
+        <a href="#repository">6. SettingsRepository</a>
+        <a href="#updates">7. UpdateManager</a>
+        <a href="#logger">8. AppLogger</a>
+        <a href="#permissions">9. Разрешения (Manifest)</a>
+    </div>
+
+    <div class="content">
+        <h1>Техническая документация TrackLit</h1>
+        <p>Версия: 1.0.0 | Автор: Osetrov.V.V. | Дата: 2026</p>
+
+        <section id="overview">
+            <h2>1. Обзор проекта</h2>
+            <p><strong>TrackLit</strong> — это специализированное Android-приложение для водителей, обеспечивающее автоматизацию учета пробега и расхода ГСМ. Приложение использует GPS для высокоточного измерения дистанции в фоновом режиме и производит динамический расчет остатка топлива с учетом сезонных поправок.</p>
+            <ul class="feature-list">
+                <li>Фоновое отслеживание пути через Foreground Service.</li>
+                <li>Фиксация максимальной достигнутой скорости за рейс.</li>
+                <li>Расчет расхода топлива с коэффициентами «Зима» и «Весна» (+10%).</li>
+                <li>Автоматическая остановка рейса при выключении GPS.</li>
+                <li>Система самообновления через Firebase API.</li>
+                <li>Экспорт подробных логов работы программы.</li>
+            </ul>
+        </section>
+
+        <section id="architecture">
+            <h2>2. Архитектура</h2>
+            <p>Приложение построено на базе современного паттерна <strong>MVVM (Model-View-ViewModel)</strong> с использованием <strong>Jetpack Compose</strong> для построения пользовательского интерфейса.</p>
+            <table>
+                <tr><th>Компонент</th><th>Роль</th></tr>
+                <tr><td><strong>UI Layer (Compose)</strong></td><td>Декларативное описание интерфейса, реакция на изменения State.</td></tr>
+                <tr><td><strong>ViewModel</strong></td><td>Управление состоянием экрана, математические расчеты, валидация ввода.</td></tr>
+                <tr><td><strong>Service Layer</strong></td><td>Работа с системными датчиками (GPS) независимо от состояния экрана.</td></tr>
+                <tr><td><strong>Data Layer</strong></td><td>Обеспечение постоянного хранения данных (Persistence) через SharedPreferences.</td></tr>
+            </table>
+        </section>
+
+        <section id="main-activity">
+            <span class="tag tag-ui">UI Layer</span>
+            <h2>3. MainActivity</h2>
+            <p>Входная точка приложения. Отвечает за разрешения Android, интеграцию с Google Play Services и управление жизненным циклом рейса.</p>
+            <table class="method-table">
+                <tr><td>onCreate()</td><td>Инициализация UI, настройка слушателей изменений данных и проверка статуса GPS.</td></tr>
+                <tr><td>onStartClicked()</td><td>Логика проверки GPS и последовательный запрос разрешений (основных и фоновых).</td></tr>
+                <tr><td>onStopClicked()</td><td>Остановка фоновой службы и фиксация итоговых данных рейса.</td></tr>
+                <tr><td>checkBackgroundPermission()</td><td>Проверка спец. разрешения для Android 10+ на доступ к локации в свернутом режиме.</td></tr>
+                <tr><td>showGpsRequiredDialog()</td><td>Критическое уведомление при выключении GPS во время работы.</td></tr>
+                <tr><td>shareLogFile()</td><td>Механизм экспорта текстового файла логов через стандартное меню «Поделиться».</td></tr>
+            </table>
+        </section>
+
+        <section id="viewmodel">
+            <span class="tag tag-logic">Business Logic</span>
+            <h2>4. MainViewModel</h2>
+            <p>Сердце приложения. Содержит всю математическую логику и управляет «реактивностью» интерфейса.</p>
+            <table class="method-table">
+                <tr><td>loadFields()</td><td>Восстановление всех данных из памяти при запуске (спидометр, топливо, норма, рекорд скорости).</td></tr>
+                <tr><td>calculateRemainingFuel()</td><td>Алгоритм: <span class="code">baseFuel - (traveledKm * (std * factor) / 100)</span>.</td></tr>
+                <tr><td>onFieldChange()</td><td>Валидация пользовательского ввода (регулярные выражения, ограничение знаков после запятой).</td></tr>
+                <tr><td>onStartTrip()</td><td>Сброс временных счетчиков и фиксация базовых значений одометра перед началом пути.</td></tr>
+                <tr><td>onStopTrip()</td><td>Сохранение финальных результатов и перевод интерфейса в режим редактирования.</td></tr>
+                <tr><td>updateStateFromDistance()</td><td>Метод, который вызывается при каждом перемещении на 1 метр для обновления цифр на экране.</td></tr>
+            </table>
+        </section>
+
+        <section id="location-service">
+            <span class="tag tag-service">Background</span>
+            <h2>5. LocationService</h2>
+            <p>Служба, работающая как <strong>Foreground Service</strong>. Гарантирует, что Android не «убьет» процесс отслеживания при нехватке памяти.</p>
+            <table class="method-table">
+                <tr><td>onLocationResult()</td><td>Фильтрация «дребезга» GPS (порог 1 метр) и расчет скорости по формуле (дистанция/время).</td></tr>
+                <tr><td>startLocationUpdates()</td><td>Настройка <span class="code">FusedLocationProvider</span> на высокую точность и интервал обновления 3 секунды.</td></tr>
+                <tr><td>saveCurrentSpeed()</td><td>Мгновенная запись скорости в хранилище для немедленного отображения в UI.</td></tr>
+            </table>
+        </section>
+
+        <section id="repository">
+            <span class="tag tag-data">Data Persistence</span>
+            <h2>6. SettingsRepository</h2>
+            <p>Обертка над <span class="code">SharedPreferences</span>. Гарантирует сохранность данных даже при полной разрядке устройства.</p>
+            <table class="method-table">
+                <tr><td>getTotalDistance()</td><td>Получение накопленного пробега за текущую сессию.</td></tr>
+                <tr><td>saveMaxSpeed()</td><td>Запись рекорда скорости.</td></tr>
+                <tr><td>getFieldValue()</td><td>Универсальный метод получения значений по ключам (одометр, топливо).</td></tr>
+                <tr><td>isTripStarted()</td><td>Флаг, позволяющий приложению «вспомнить», что рейс не был завершен после перезагрузки.</td></tr>
+            </table>
+        </section>
+
+        <section id="updates">
+            <span class="tag tag-service">API Layer</span>
+            <h2>7. UpdateManager</h2>
+            <p>Механизм OTA-обновлений (Over-The-Air) без использования Google Play Store.</p>
+            <table class="method-table">
+                <tr><td>checkForUpdates()</td><td>Запрос параметров <span class="code">latest_version_code</span> и <span class="code">apk_url</span> из Firebase Remote Config.</td></tr>
+                <tr><td>downloadAndInstallApk()</td><td>Использование системного <span class="code">DownloadManager</span> для безопасной загрузки файла обновления.</td></tr>
+                <tr><td>installApk()</td><td>Запуск интент-фильтра установки пакетов через <span class="code">FileProvider</span>.</td></tr>
+            </table>
+        </section>
+
+        <section id="logger">
+            <span class="tag tag-data">Utility</span>
+            <h2>8. AppLogger</h2>
+            <p>Служебный класс для диагностики.</p>
+            <table class="method-table">
+                <tr><td>d() / e()</td><td>Запись логов с временными метками в файл <span class="code">app_logs.txt</span> и в облако Crashlytics.</td></tr>
+                <tr><td>writeToInternalFile()</td><td>Метод записи во внутреннюю память с автоматической ротацией (ограничение размера 1МБ).</td></tr>
+            </table>
+        </section>
+
+        <section id="permissions">
+            <h2>9. Разрешения (Manifest)</h2>
+            <p>Для корректной работы приложения в AndroidManifest.xml задекларированы следующие доступы:</p>
+            <ul>
+                <li><span class="code">ACCESS_FINE_LOCATION</span>: Точный GPS.</li>
+                <li><span class="code">ACCESS_BACKGROUND_LOCATION</span>: Работа в фоне.</li>
+                <li><span class="code">FOREGROUND_SERVICE_LOCATION</span>: Уведомление в шторке при работе.</li>
+                <li><span class="code">REQUEST_INSTALL_PACKAGES</span>: Установка обновлений.</li>
+                <li><span class="code">INTERNET</span>: Связь с Firebase.</li>
+            </ul>
+        </section>
+
+        <footer>
+            <p>TrackLit Technical Documentation &copy; 2026. Разработано для профессионального использования.</p>
+        </footer>
+    </div>
+
+</body>
+</html>
