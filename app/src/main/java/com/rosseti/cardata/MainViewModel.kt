@@ -21,12 +21,12 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         private const val SEASONAL_FACTOR = 1.1f
         private const val METERS_PER_KM = 1000f
         private const val FUEL_CONSUMPTION_BASE_DISTANCE = 100f
-        private const val IDLE_FUEL_CONSUMPTION_L_H = 1.0f // Расход на холостом ходу (л/час)
 
         private const val ID_KM = "km"
         private const val ID_FUEL = "fuel"
         private const val ID_FUEL_STD = "fuelStandart"
         private const val ID_MAX_SPEED = "max_speed"
+        private const val ID_TRIP_KM = "trip_km"
 
         private val DECIMAL_REGEX = Regex("""^\d{0,7}(\.\d{0,2})?$""")
     }
@@ -49,6 +49,11 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     val fields = mutableStateListOf<NumericField>()
 
     /**
+     * Состояние языка интерфейса (true - русский, false - английский).
+     */
+    var isRussian = mutableStateOf<Boolean>(repository.getIsRussian())
+
+    /**
      * Состояние режима "Весна".
      */
     var isSpring = mutableStateOf(false)
@@ -62,6 +67,15 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     private var baseFuel: Float = 0f
 
     init {
+        loadFields()
+    }
+
+    /**
+     * Переключение языка интерфейса.
+     */
+    fun toggleLanguage() {
+        isRussian.value = !isRussian.value
+        repository.saveIsRussian(isRussian.value)
         loadFields()
     }
 
@@ -105,36 +119,48 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val traveledKm = savedTripDistance / METERS_PER_KM
         val currentTotalKm = baseKm + traveledKm
         
-        val startTime = repository.getStartTime()
-        val durationMillis = if (isTripStarted.value && startTime > 0) System.currentTimeMillis() - startTime else 0L
-
         val maxSpeedStr = repository.getMaxSpeed()
-        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd, durationMillis)
+        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd)
 
         val kmStr = formatDecimal(currentTotalKm)
+        val tripKmStr = formatDecimal(traveledKm)
         val fuelStr = formatDecimal(remainingFuel)
         val fuelStdStr = formatDecimal(fuelStd)
 
-        if (fields.isEmpty()) {
-            fields.add(NumericField(ID_KM, "Спидометр(км)", kmStr))
-            fields.add(NumericField(ID_FUEL, "Остаток топлива", fuelStr))
-            fields.add(NumericField(ID_FUEL_STD, "Норма расхода топлива", fuelStdStr))
-            fields.add(NumericField(ID_MAX_SPEED, "Макс. скорость (км/ч)", maxSpeedStr))
+        val labels = if (isRussian.value) {
+            listOf("Спидометр (км)", "Дистанция (км)", "Остаток топлива", "Норма расхода", "Макс. скорость (км/ч)")
         } else {
-            updateField(ID_KM, kmStr)
-            updateField(ID_FUEL, fuelStr)
-            updateField(ID_FUEL_STD, fuelStdStr)
-            updateField(ID_MAX_SPEED, maxSpeedStr)
+            listOf("Speedometer (km)", "Trip Distance (km)", "Remaining Fuel", "Fuel Consumption Rate", "Max Speed (km/h)")
+        }
+
+        if (fields.isEmpty()) {
+            fields.add(NumericField(ID_KM, labels[0], kmStr))
+            fields.add(NumericField(ID_TRIP_KM, labels[1], tripKmStr))
+            fields.add(NumericField(ID_FUEL, labels[2], fuelStr))
+            fields.add(NumericField(ID_FUEL_STD, labels[3], fuelStdStr))
+            fields.add(NumericField(ID_MAX_SPEED, labels[4], maxSpeedStr))
+        } else {
+            updateField(ID_KM, kmStr, labels[0])
+            updateField(ID_TRIP_KM, tripKmStr, labels[1])
+            updateField(ID_FUEL, fuelStr, labels[2])
+            updateField(ID_FUEL_STD, fuelStdStr, labels[3])
+            updateField(ID_MAX_SPEED, maxSpeedStr, labels[4])
         }
     }
 
     /**
      * Обновляет поле по его ID, если значение изменилось.
      */
-    private fun updateField(id: String, newValue: String) {
+    private fun updateField(id: String, newValue: String, newLabel: String? = null) {
         val index = fields.indexOfFirst { it.id == id }
-        if (index != -1 && fields[index].value != newValue) {
-            fields[index] = fields[index].copy(value = newValue)
+        if (index != -1) {
+            val currentField = fields[index]
+            if (currentField.value != newValue || (newLabel != null && currentField.label != newLabel)) {
+                fields[index] = currentField.copy(
+                    value = newValue,
+                    label = newLabel ?: currentField.label
+                )
+            }
         }
     }
 
@@ -153,9 +179,9 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     }
 
     /**
-     * Вычисляет остаток топлива на основе пройденного расстояния, нормы расхода и времени работы двигателя.
+     * Вычисляет остаток топлива на основе пройденного расстояния и нормы расхода.
      */
-    private fun calculateRemainingFuel(traveledKm: Float, fuelStd: Float, durationMillis: Long): Float {
+    private fun calculateRemainingFuel(traveledKm: Float, fuelStd: Float): Float {
         if (fuelStd <= 0) return baseFuel
         
         val totalFactor = getConsumptionFactor()
@@ -163,11 +189,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         // Расход в движении (л/100км)
         val fuelConsumedMoving = (traveledKm * (fuelStd * totalFactor)) / FUEL_CONSUMPTION_BASE_DISTANCE
         
-        // Расход на холостом ходу (л/час)
-        val durationHours = durationMillis / (1000f * 60f * 60f)
-        val fuelConsumedIdle = durationHours * IDLE_FUEL_CONSUMPTION_L_H
-        
-        return (baseFuel - (fuelConsumedMoving + fuelConsumedIdle)).coerceAtLeast(0f)
+        return (baseFuel - fuelConsumedMoving).coerceAtLeast(0f)
     }
 
     /**
@@ -238,6 +260,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val currentTotal = baseKm + traveledKm
         
         updateField(ID_KM, formatDecimal(currentTotal))
+        updateField(ID_TRIP_KM, formatDecimal(traveledKm))
         
         val currentSpeed = repository.getCurrentSpeed()
         val savedMaxSpeed = repository.getMaxSpeed().toFloatOrNull() ?: 0f
@@ -254,9 +277,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         // Если норма расхода топлива не пустая, выполняем расчет остатка топлива
         if (fuelStdValue.isNotEmpty()) {
             val fuelStd = fuelStdValue.toFloatOrNull() ?: 0f
-            val startTime = repository.getStartTime()
-            val durationMillis = if (startTime > 0) System.currentTimeMillis() - startTime else 0L
-            val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd, durationMillis)
+            val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd)
             updateField(ID_FUEL, formatDecimal(remainingFuel))
         }
     }
@@ -279,6 +300,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         repository.saveFieldValue(ID_KM, baseKm)
         repository.saveFieldValue(ID_FUEL, baseFuel)
         
+        updateField(ID_TRIP_KM, "0.00")
         updateField(ID_MAX_SPEED, "0")
     }
 
@@ -290,11 +312,8 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val traveledKm = currentTripDist / METERS_PER_KM
         val fuelStd = fields.find { it.id == ID_FUEL_STD }?.value?.toFloatOrNull() ?: 0f
 
-        val startTime = repository.getStartTime()
-        val durationMillis = if (startTime > 0) System.currentTimeMillis() - startTime else 0L
-
         val finalKm = baseKm + traveledKm
-        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd, durationMillis)
+        val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd)
         val maxSpeed = repository.getMaxSpeed()
 
         repository.saveFieldValue(ID_KM, finalKm)

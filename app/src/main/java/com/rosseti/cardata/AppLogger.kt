@@ -19,7 +19,7 @@ object AppLogger {
         val formattedMessage = formatMessage("DEBUG", message)
         Log.d(TAG, formattedMessage)
         writeToInternalFile(context, formattedMessage)
-        FirebaseCrashlytics.getInstance().log(formattedMessage)
+        // FirebaseCrashlytics.getInstance().log(formattedMessage) // Optional: avoid logging every GPS point to Firebase
     }
 
     fun e(context: Context, message: String, throwable: Throwable? = null) {

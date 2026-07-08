@@ -1,5 +1,6 @@
 package com.rosseti.cardata
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -33,10 +34,11 @@ class LocationService : Service() {
         super.onCreate()
         AppLogger.d(this, "Service onCreate - Инициализация службы")
         
+        repository = SettingsRepository(applicationContext)
+        
         // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
         startForegroundServiceSafe()
         
-        repository = SettingsRepository(applicationContext)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         
         locationCallback = object : LocationCallback() {
@@ -74,7 +76,7 @@ class LocationService : Service() {
                             AppLogger.d(applicationContext, "Новый рекорд скорости: $speedKmh км/ч")
                         }
                         
-                        // Игнорируем перемещения менее 1 метра для фильтрации дрейфа одометра
+                        // Игнорируем перемещения менее 2 метров для фильтрации дрейфа одометра
                         if (distance >= 2.0f) {
                             val currentTotal = repository.getTotalDistance()
                             val newTotal = currentTotal + distance
@@ -82,10 +84,43 @@ class LocationService : Service() {
                             lastLocation = location
                             AppLogger.d(applicationContext, "Одометр обновлен: +$distance м, Итого: $newTotal м")
                         }
+                        
+                        // Обновляем уведомление с текущими данными
+                        updateNotification(speedKmh, repository.getTotalDistance())
                     }
                 }
             }
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun updateNotification(speedKmh: Float, totalDistanceMeters: Float) {
+        val traveledKm = totalDistanceMeters / 1000f
+        val baseKm = repository.getFieldValue("km")
+        val currentTotalKm = baseKm + traveledKm
+        
+        val isRussian = repository.getIsRussian()
+        
+        val title = if (isRussian) "TrackLit: Поездка активна" else "TrackLit: Trip Active"
+        val contentFormat = if (isRussian) {
+            "Спидометр: %.2f км | Путь: %.2f км | Скорость: %.0f км/ч"
+        } else {
+            "Odometer: %.2f km | Trip: %.2f km | Speed: %.0f km/h"
+        }
+        
+        val formattedContent = String.format(java.util.Locale.US, contentFormat, currentTotalKm, traveledKm, speedKmh)
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(formattedContent)
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true)
+            .build()
+
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -95,17 +130,22 @@ class LocationService : Service() {
     }
 
     private fun startForegroundServiceSafe() {
+        val isRussian = repository.getIsRussian()
+        val channelName = if (isRussian) "Отслеживание GPS" else "GPS Tracking"
+        val title = if (isRussian) "TrackLit: Поездка активна" else "TrackLit: Trip Active"
+        val text = if (isRussian) "Идет отслеживание поездки..." else "Trip tracking in progress..."
+
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "GPS Tracking",
+            channelName,
             NotificationManager.IMPORTANCE_LOW
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("TrackLit GPS-трекер")
-            .setContentText("Идет отслеживание рейса...")
+            .setContentTitle(title)
+            .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

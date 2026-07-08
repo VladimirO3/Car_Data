@@ -101,11 +101,24 @@ class SettingsRepository(context: Context) {
      */
     fun getCurrentSpeed(): Float = sharedPrefs.getFloat(KEY_CURRENT_SPEED, 0f)
 
+    /**
+     * Сохраняет выбранный язык (true - русский).
+     */
+    fun saveIsRussian(isRussian: Boolean) {
+        sharedPrefs.edit { putBoolean(KEY_IS_RUSSIAN, isRussian) }
+    }
+
+    /**
+     * Извлекает текущий выбор языка.
+     */
+    fun getIsRussian(): Boolean = sharedPrefs.getBoolean(KEY_IS_RUSSIAN, false)
+
     companion object {
         private const val KEY_TOTAL_DISTANCE = "total_distance"
         private const val KEY_START_TIME = "trip_start_time"
         private const val KEY_IS_TRIP_STARTED = "is_trip_started"
         private const val KEY_MAX_SPEED = "last_max_speed"
         private const val KEY_CURRENT_SPEED = "current_speed"
+        private const val KEY_IS_RUSSIAN = "is_russian"
     }
 }

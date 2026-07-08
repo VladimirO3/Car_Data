@@ -56,12 +56,12 @@ class UpdateManager(private val context: Context) {
 
     private fun showUpdateDialog(versionName: String, apkUrl: String) {
         AlertDialog.Builder(context)
-            .setTitle("Доступно обновление")
-            .setMessage("Доступна новая версия $versionName. Хотите обновить приложение?")
-            .setPositiveButton("Обновить") { _, _ ->
+            .setTitle("Update Available")
+            .setMessage("New version $versionName is available. Would you like to update?")
+            .setPositiveButton("Update") { _, _ ->
                 downloadAndInstallApk(apkUrl)
             }
-            .setNegativeButton("Позже", null)
+            .setNegativeButton("Later", null)
             .show()
     }
 
@@ -72,8 +72,8 @@ class UpdateManager(private val context: Context) {
         if (destination.exists()) destination.delete()
 
         val request = DownloadManager.Request(url.toUri())
-            .setTitle("Загрузка обновления TrackLit")
-            .setDescription("Скачивание новой версии...")
+            .setTitle("Downloading TrackLit Update")
+            .setDescription("Downloading new version...")
             .setDestinationUri(Uri.fromFile(destination))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
 
@@ -102,7 +102,7 @@ class UpdateManager(private val context: Context) {
 	        )
         }
         
-        Toast.makeText(context, "Загрузка началась...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Downloading started...", Toast.LENGTH_SHORT).show()
     }
 
     private fun installApk(file: File) {

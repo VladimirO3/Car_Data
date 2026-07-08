@@ -25,6 +25,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -58,6 +60,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -78,34 +83,6 @@ import com.rosseti.cardata.data.SettingsRepository
 import com.rosseti.cardata.model.NumericField
 import com.rosseti.cardata.ui.theme.CarDataTheme
 import java.util.Locale
-
-/**
- * Предоставляет компонованный предварительный просмотр экрана [MainLocationContent].
- * В этом предварительном просмотре отображается макет интерфейса пользовательского интерфейса с имитационными данными, включая спидометр.
- * Поля топлива и потребления, чтобы проверить внешний вид в инструменте дизайна IDE.
- */
-@Preview(showBackground = true)
-@Composable
-fun PreviewMainLocationContent() {
-    CarDataTheme {
-        MainLocationContent(
-            fields = listOf(
-                NumericField("km", "Спидометр(км)", "10.0"),
-                NumericField("fuel", "Топливо(л)", "30.0"),
-                NumericField("std", "Расхода топлива(л/100)", "6.5"),
-                NumericField("avg_speed", "Ср. скорость (км/ч)", "45.0")
-            ),
-            isWinter = false,
-            isSpring = false,
-            isTripStarted = true,
-            onSpringChange = {},
-            onWinterChange = {},
-            onFieldChange = { _, _ -> },
-            onStartClick = {},
-            onStopClick = {}
-        )
-    }
-}
 
 /**
  * Основная точка входа в приложение, ответственная за пользовательский интерфейс и
@@ -157,7 +134,7 @@ class MainActivity : ComponentActivity() {
         if (fineGranted) {
             checkBackgroundPermission()
         } else {
-            makeText(this, "Требуется разрешение на местоположение", Toast.LENGTH_SHORT).show()
+            makeText(this, "Location permission required", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -175,7 +152,7 @@ class MainActivity : ComponentActivity() {
         if (isGranted) {
             startTripService()
         } else {
-            makeText(this, "Фоновый доступ не предоставлен", Toast.LENGTH_SHORT).show()
+            makeText(this, "Background access not granted", Toast.LENGTH_SHORT).show()
             startTripService()
         }
     }
@@ -190,7 +167,7 @@ class MainActivity : ComponentActivity() {
             // Пользователь включил GPS, продолжаем стандартную проверку разрешений
             checkLocationPermissions()
         } else {
-            makeText(this, "Для работы приложения необходимо включить GPS", Toast.LENGTH_LONG).show()
+            makeText(this, "GPS must be enabled for the app to function", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -266,7 +243,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 // Если системный диалог недоступен, используем старый способ с переходом в настройки
                 if (!isLocationEnabled()) {
-                    makeText(this, "Пожалуйста, включите GPS в настройках", Toast.LENGTH_LONG).show()
+                    makeText(this, "Please enable GPS in settings", Toast.LENGTH_LONG).show()
                     startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                 }
             }
@@ -277,13 +254,25 @@ class MainActivity : ComponentActivity() {
      * Выполняет последовательную проверку разрешений на доступ к местоположению.
      */
     private fun checkLocationPermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            checkBackgroundPermission()
+            // На Android 13+ также проверяем уведомления, но не блокируем запуск без них
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(permissions.toTypedArray())
+            } else {
+                checkBackgroundPermission()
+            }
         } else {
-            requestPermissionLauncher.launch(arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ))
+            requestPermissionLauncher.launch(permissions.toTypedArray())
         }
     }
 
@@ -354,9 +343,9 @@ class MainActivity : ComponentActivity() {
 
     private fun showGpsRequiredDialog() {
         AlertDialog.Builder(this)
-            .setTitle("GPS выключен")
-            .setMessage("Для работы приложения GPS должен быть всегда включен. Рейс остановлен.")
-            .setPositiveButton("ОК", null)
+            .setTitle("GPS is Off")
+            .setMessage("GPS must be enabled for the app to function properly. Trip stopped.")
+            .setPositiveButton("OK", null)
             .show()
     }
 
@@ -382,19 +371,23 @@ fun MainLocationScreen(
         isSpring = viewModel.isSpring.value,
         isWinter = viewModel.isWinter.value,
         isTripStarted = viewModel.isTripStarted.value,
+        isRussian = viewModel.isRussian.value,
         onSpringChange = { viewModel.toggleSpring(it) },
         onWinterChange = { viewModel.toggleWinter(it) },
+        onLanguageToggle = { viewModel.toggleLanguage() },
         onFieldChange = viewModel::onFieldChange,
         onStartClick = {
             onStart()
             val kmValue = viewModel.fields.getOrNull(0)?.value ?: ""
             if (kmValue.isNotEmpty()) {
-                makeText(context, "Рейс запущен", Toast.LENGTH_SHORT).show()
+                val msg = if (viewModel.isRussian.value) "Поездка начата" else "Trip started"
+                makeText(context, msg, Toast.LENGTH_SHORT).show()
             }
         },
         onStopClick = {
             onStop()
-            makeText(context, "Рейс завершен!", Toast.LENGTH_LONG).show()
+            val msg = if (viewModel.isRussian.value) "Поездка завершена!" else "Trip completed!"
+            makeText(context, msg, Toast.LENGTH_LONG).show()
         }
     )
 }
@@ -409,8 +402,10 @@ fun MainLocationContent(
     isWinter: Boolean,
     isSpring: Boolean,
     isTripStarted: Boolean,
+    isRussian: Boolean,
     onWinterChange: (Boolean) -> Unit,
     onSpringChange: (Boolean) -> Unit,
+    onLanguageToggle: () -> Unit,
     onFieldChange: (Int, String) -> Unit,
     onStartClick: () -> Unit,
     onStopClick: () -> Unit
@@ -418,36 +413,45 @@ fun MainLocationContent(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val currentTotalKm = fields.getOrNull(0)?.value?.toFloatOrNull() ?: 0f
-    val currentRemainingFuel = fields.getOrNull(1)?.value?.toFloatOrNull() ?: 0f
-    val currentMaxSpeed = fields.getOrNull(3)?.value?.toFloatOrNull() ?: 0f
+    val currentRemainingFuel = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f // ID_FUEL is index 2 now
+    val currentMaxSpeed = fields.getOrNull(4)?.value?.toFloatOrNull() ?: 0f // ID_MAX_SPEED is index 4
     
     val localContext = LocalContext.current
     val scrollStateLeft = rememberScrollState()
     val scrollStateRight = rememberScrollState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Индикатор РЕЙС в левом верхнем углу
-        if (isTripStarted) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                ),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(30.dp)
-            ) {
-                Text(
-                    text = "● РЕЙС",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-        }
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
+        )
+    )
+
+    val tripLabel = if (isRussian) "● РЕЙС" else "● TRIP"
+    val startLabel = if (isRussian) "Старт" else "Start"
+    val stopLabel = if (isRussian) "Стоп" else "Stop"
+    val winterLabel = if (isRussian) "Зима (+10%)" else "Winter (+10%)"
+    val springLabel = if (isRussian) "Весна (+10%)" else "Spring (+10%)"
+    val copyrightLabel = if (isRussian) "© 2026. Все права защищены." else "© 2026. All rights reserved."
+    val exitDesc = if (isRussian) "Выход" else "Exit"
+    val shareDesc = if (isRussian) "Отправить координаты" else "Send Coordinates"
+    val langDesc = if (isRussian) "Сменить язык" else "Change Language"
+
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        // Декоративный элемент на заднем плане
+        Icon(
+            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .size(400.dp)
+                .alpha(0.05f),
+            tint = MaterialTheme.colorScheme.primary
+        )
 
         if (isLandscape) {
-            Column(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+            Column(modifier = Modifier.fillMaxSize().padding(5.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -461,8 +465,13 @@ fun MainLocationContent(
                         textAlign = TextAlign.Center
                     )
                 }
+                val landscapeStats = if (isRussian) {
+                    "Спидометр: %.2f км | Топливо: %.2f л | Макс. скорость: %.0f км/ч"
+                } else {
+                    "Speedometer: %.2f km | Fuel: %.2f L | Max Speed: %.0f km/h"
+                }
                 Text(
-                    text = String.format(Locale.US, "Спидометр: %.2f км | Топливо: %.2f л | Макс. скорость: %.0f км/ч",
+                    text = String.format(Locale.US, landscapeStats,
                                         currentTotalKm, currentRemainingFuel, currentMaxSpeed),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
@@ -473,24 +482,27 @@ fun MainLocationContent(
                 
                 Row(
                     modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Column(
                         modifier = Modifier.weight(1f).verticalScroll(scrollStateLeft),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy((-6).dp)
+                            ) {
                                 fields.forEachIndexed { index, field ->
                                     key(field.id) {
                                         OutlinedTextField(
                                             value = field.value,
                                             onValueChange = { onFieldChange(index, it) },
-                                            label = { Text(field.label, fontSize = 12.sp) },
+                                            label = { Text(field.label, fontSize = 9.sp) },
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                            modifier = Modifier.width(260.dp).padding(vertical = 1.dp),
-                                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 10.sp),
-                                            readOnly = isTripStarted || field.id == "max_speed",
+                                            modifier = Modifier.width(260.dp),
+                                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
+                                            readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km",
                                             singleLine = true
                                         )
                                     }
@@ -503,15 +515,17 @@ fun MainLocationContent(
                         verticalArrangement = Arrangement.Top,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(15.dp))
                         Button(
                             onClick = onStartClick,
-                            modifier = Modifier.width(240.dp)
-                        ) { Text("Старт") }
+                            modifier = Modifier.width(240.dp),
+                            enabled = !isTripStarted
+                        ) { Text(startLabel) }
                         Button(
                             onClick = onStopClick,
-                            modifier = Modifier.width(240.dp)
-                        ) { Text("Стоп") }
+                            modifier = Modifier.width(240.dp),
+                            enabled = isTripStarted
+                        ) { Text(stopLabel) }
                         
                         Spacer(modifier = Modifier.height(10.dp))
                         
@@ -528,15 +542,16 @@ fun MainLocationContent(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                MyCheckboxScreenCompact(isWinter, onWinterChange, "Зима (+10%)")
-                                MyCheckboxScreenCompact(isSpring, onSpringChange, "Весна (+10%)")
+                                MyCheckboxScreenCompact(isWinter, onWinterChange, winterLabel)
+                                MyCheckboxScreenCompact(isSpring, onSpringChange, springLabel)
                             }
                         }
                         
                         Spacer(modifier = Modifier.height(1.dp))
                         Text(
                             text = "© 2026",
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.align(alignment = Alignment.End)
+                                .padding(20.dp),
                             fontSize = 8.sp,
                             textAlign = TextAlign.Justify,
                             color = MaterialTheme.colorScheme.outline
@@ -548,7 +563,7 @@ fun MainLocationContent(
         } else {
             Column(
                 modifier = Modifier.fillMaxSize().padding(10.dp).verticalScroll(scrollStateLeft),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(20.dp))
@@ -564,8 +579,13 @@ fun MainLocationContent(
                         textAlign = TextAlign.Center
                     )
                 }
+                val portraitStats = if (isRussian) {
+                    "Спидометр: %.2f км\nОстаток топлива: %.2f л\nМакс. скорость: %.0f км/ч"
+                } else {
+                    "Speedometer: %.2f km\nRemaining Fuel: %.2f L\nMax Speed: %.0f km/h"
+                }
                 Text(
-                    text = String.format(Locale.US, "Спидометр: %.2f км\nОстаток топлива: %.2f л\nМаксимальная скорость: %.0f км/ч",
+                    text = String.format(Locale.US, portraitStats,
                                         currentTotalKm, currentRemainingFuel, currentMaxSpeed),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
@@ -579,17 +599,25 @@ fun MainLocationContent(
                             label = { Text(field.label) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth(),
-                            readOnly = isTripStarted || field.id == "max_speed"
+                            readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km"
                         )
                     }
                 }
                 Row {
-                    MyCheckboxScreen(isWinter, onWinterChange)
-                    MyCheckboxScreenSpring(isSpring, onSpringChange)
+                    MyCheckboxScreen(isWinter, onWinterChange, winterLabel)
+                    MyCheckboxScreenSpring(isSpring, onSpringChange, springLabel)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = onStartClick, modifier = Modifier.fillMaxWidth()) { Text("Старт") }
-                Button(onClick = onStopClick, modifier = Modifier.fillMaxWidth()) { Text("Стоп") }
+                Button(
+                    onClick = onStartClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isTripStarted
+                ) { Text(startLabel) }
+                Button(
+                    onClick = onStopClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = isTripStarted
+                ) { Text(stopLabel) }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
@@ -599,13 +627,55 @@ fun MainLocationContent(
                     modifier = Modifier.size(120.dp)
                 )
 
-                Spacer(modifier = Modifier.height(0.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "© 2026. Все права защищены.",
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+                    text = copyrightLabel,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 5.dp),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.outline,
                     textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        // Группа элементов в левом верхнем углу (Индикатор + Язык)
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Резервируем место под индикатор, чтобы кнопка не прыгала
+            Box(modifier = Modifier.height(24.dp), contentAlignment = Alignment.Center) {
+                if (isTripStarted) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Text(
+                            text = tripLabel,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp)) // Отступ между маркером и переключателем
+
+            // Переключатель языка
+            IconButton(
+                onClick = onLanguageToggle,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Text(
+                    text = if (isRussian) "RU" else "EN",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 14.sp
                 )
             }
         }
@@ -622,33 +692,64 @@ fun MainLocationContent(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                contentDescription = "Выход",
+                contentDescription = exitDesc,
                 tint = MaterialTheme.colorScheme.primary
             )
         }
 
-        // Иконка "Отправить логи" (расположена левее кнопки выхода)
+        // Иконка "Отправить координаты" (расположена левее кнопки выхода)
         IconButton(
             onClick = {
-                shareLogFile(localContext)
+                shareCurrentLocation(localContext)
             },
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 30.dp, end = 75.dp)
+                .padding(top = 30.dp, end = 55.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Share,
-                contentDescription = "Отправить логи",
+                imageVector = Icons.Default.LocationOn,
+                contentDescription = shareDesc,
                 tint = MaterialTheme.colorScheme.secondary
             )
         }
     }
 }
 
+private fun shareCurrentLocation(context: android.content.Context) {
+    val repository = SettingsRepository(context)
+    val isRussian = repository.getIsRussian()
+    
+    // Получаем последние координаты из системы через FusedLocationProviderClient
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+    
+    try {
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                val uri = "https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}"
+                val message = if (isRussian) {
+                    "Мои текущие координаты: ${location.latitude}, ${location.longitude}\nСсылка на карту: $uri"
+                } else {
+                    "My current location: ${location.latitude}, ${location.longitude}\nMap link: $uri"
+                }
+
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, message)
+                }
+                context.startActivity(Intent.createChooser(intent, if (isRussian) "Поделиться координатами..." else "Share location via..."))
+            } else {
+                Toast.makeText(context, if (isRussian) "Координаты еще не определены" else "Location not determined yet", Toast.LENGTH_SHORT).show()
+            }
+        }
+    } catch (e: SecurityException) {
+        Toast.makeText(context, "Permission error: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
 private fun shareLogFile(context: android.content.Context) {
     val logFile = AppLogger.getLogFile(context)
     if (!logFile.exists()) {
-        Toast.makeText(context, "Файл логов еще не создан", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Log file not created yet", Toast.LENGTH_SHORT).show()
         return
     }
 
@@ -663,7 +764,7 @@ private fun shareLogFile(context: android.content.Context) {
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(intent, "Отправить логи через..."))
+    context.startActivity(Intent.createChooser(intent, "Share logs via..."))
 }
 
 /**
@@ -674,7 +775,7 @@ private fun shareLogFile(context: android.content.Context) {
  * @param onCheckedChange Лямбда-выражение, вызываемое при изменении состояния флажка.
  */
 @Composable
-fun MyCheckboxScreen(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun MyCheckboxScreen(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
     Row(
         modifier = Modifier.padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -684,13 +785,13 @@ fun MyCheckboxScreen(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit) {
             onCheckedChange = onCheckedChange
         )
         Text(
-            text = "Зима (+10%)",
+            text = label,
             modifier = Modifier.padding(start = 4.dp)
         )
     }
 }
 @Composable
-fun MyCheckboxScreenSpring(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun MyCheckboxScreenSpring(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
     Row(
         modifier = Modifier.padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -700,7 +801,7 @@ fun MyCheckboxScreenSpring(isChecked: Boolean, onCheckedChange: (Boolean) -> Uni
             onCheckedChange = onCheckedChange
         )
         Text(
-            text = "Весна (+10%)",
+            text = label,
             modifier = Modifier.padding(start = 4.dp)
         )
     }
@@ -725,5 +826,91 @@ fun MyCheckboxScreenCompact(isChecked: Boolean, onCheckedChange: (Boolean) -> Un
             fontSize = 10.sp,
             modifier = Modifier.padding(start = 2.dp)
         )
+    }
+}
+
+@Preview(showBackground = true, name = "Main Content - Started")
+@Composable
+fun PreviewMainLocationContentStarted() {
+    CarDataTheme {
+        MainLocationContent(
+            fields = listOf(
+                NumericField("km", "Speedometer (km)", "10.0"),
+                NumericField("fuel", "Fuel (L)", "30.0"),
+                NumericField("std", "Fuel Rate (L/100)", "6.5"),
+                NumericField("trip_km", "Trip (km)", "5.0"),
+                NumericField("avg_speed", "Avg Speed (km/h)", "45.0")
+            ),
+            isWinter = false,
+            isSpring = false,
+            isTripStarted = true,
+            isRussian = true,
+            onSpringChange = {},
+            onWinterChange = {},
+            onLanguageToggle = {},
+            onFieldChange = { _, _ -> },
+            onStartClick = {},
+            onStopClick = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Main Content - Stopped")
+@Composable
+fun PreviewMainLocationContentStopped() {
+    CarDataTheme {
+        MainLocationContent(
+            fields = listOf(
+                NumericField("km", "Speedometer (km)", "0.0"),
+                NumericField("fuel", "Fuel (L)", "45.0"),
+                NumericField("std", "Fuel Rate (L/100)", "7.0"),
+                NumericField("trip_km", "Trip (km)", "0.0"),
+                NumericField("avg_speed", "Avg Speed (km/h)", "0.0")
+            ),
+            isWinter = false,
+            isSpring = false,
+            isTripStarted = false,
+            isRussian = false,
+            onSpringChange = {},
+            onWinterChange = {},
+            onLanguageToggle = {},
+            onFieldChange = { _, _ -> },
+            onStartClick = {},
+            onStopClick = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, device = "spec:width=1280dp,height=800dp,orientation=landscape", name = "Main Content - Landscape")
+@Composable
+fun PreviewMainLocationContentLandscape() {
+    CarDataTheme {
+        MainLocationContent(
+            fields = listOf(
+                NumericField("km", "Speedometer (km)", "120.5"),
+                NumericField("fuel", "Fuel (L)", "25.0"),
+                NumericField("std", "Fuel Rate (L/100)", "8.2"),
+                NumericField("trip_km", "Trip (km)", "10.0"),
+                NumericField("avg_speed", "Avg Speed (km/h)", "65.0")
+            ),
+            isWinter = true,
+            isSpring = false,
+            isTripStarted = true,
+            isRussian = true,
+            onSpringChange = {},
+            onWinterChange = {},
+            onLanguageToggle = {},
+            onFieldChange = { _, _ -> },
+            onStartClick = {},
+            onStopClick = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewMyCheckboxScreen() {
+    CarDataTheme {
+        MyCheckboxScreen(isChecked = true, onCheckedChange = {}, label = "Winter (+10%)")
     }
 }

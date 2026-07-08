@@ -24,17 +24,35 @@ class MainActivityUITest {
         // Проверка заголовка
         composeTestRule.onNodeWithText("TrackLit").assertExists()
         
-        // Проверка наличия основных полей (используем новые названия)
-        composeTestRule.onNodeWithText("Спидометр(км)").assertExists()
+        // Проверка наличия основных полей (English by default)
+        composeTestRule.onNodeWithText("Speedometer (km)").assertExists()
+        composeTestRule.onNodeWithText("Trip Distance (km)").assertExists()
+        composeTestRule.onNodeWithText("Remaining Fuel").assertExists()
+        composeTestRule.onNodeWithText("Fuel Consumption Rate").assertExists()
+        composeTestRule.onNodeWithText("Max Speed (km/h)").assertExists()
+    }
+
+    @Test
+    fun testLanguageToggle() {
+        // Initially EN
+        composeTestRule.onNodeWithText("EN").assertExists()
+        composeTestRule.onNodeWithText("Speedometer (km)").assertExists()
+
+        // Toggle to RU
+        composeTestRule.onNodeWithText("EN").performClick()
+
+        composeTestRule.onNodeWithText("RU").assertExists()
+        composeTestRule.onNodeWithText("Спидометр (км)").assertExists()
+        composeTestRule.onNodeWithText("Дистанция (км)").assertExists()
         composeTestRule.onNodeWithText("Остаток топлива").assertExists()
-        composeTestRule.onNodeWithText("Норма расхода топлива").assertExists()
+        composeTestRule.onNodeWithText("Норма расхода").assertExists()
         composeTestRule.onNodeWithText("Макс. скорость (км/ч)").assertExists()
     }
 
     @Test
     fun testFieldInputAndValidation() {
-        // Ввод данных в поле спидометра
-        composeTestRule.onNodeWithText("Спидометр(км)").performTextInput("12345.67")
+        // Ввод данных в поле спидометра (assuming English labels)
+        composeTestRule.onNodeWithText("Speedometer (km)").performTextInput("12345.67")
         
         // Проверка, что текст отобразился
         composeTestRule.onNodeWithText("12345.67").assertExists()
@@ -42,25 +60,31 @@ class MainActivityUITest {
 
     @Test
     fun testModeSelection() {
-        // Проверка наличия переключателей режимов
-        composeTestRule.onNodeWithText("Зима (+10%)").assertExists()
-        composeTestRule.onNodeWithText("Весна (+10%)").assertExists()
+        // Проверка наличия переключателей режимов (English labels initially)
+        composeTestRule.onNodeWithText("Winter (+10%)").assertExists()
+        composeTestRule.onNodeWithText("Spring (+10%)").assertExists()
     }
 
     @Test
     fun testTripStartedMarkerVisibility() {
         // Изначально маркера нет (в левом верхнем углу)
-        composeTestRule.onNodeWithText("● РЕЙС").assertDoesNotExist()
+        composeTestRule.onNodeWithText("● TRIP").assertDoesNotExist()
 
         // Кнопка Старт должна существовать
-        composeTestRule.onNodeWithText("Старт").assertExists()
+        composeTestRule.onNodeWithText("Start").assertExists()
     }
 
     @Test
     fun testLogoAndExitIconExistence() {
-        // Проверка наличия логотипа (по описанию, если добавлено)
+        // Проверка наличия логотипа (по описанию)
         composeTestRule.onNodeWithContentDescription("Logo").assertExists()
         // Проверка наличия иконки выхода
-        composeTestRule.onNodeWithContentDescription("Выход").assertExists()
+        composeTestRule.onNodeWithContentDescription("Exit").assertExists()
+    }
+
+    @Test
+    fun testShareLocationIconExistence() {
+        // Проверка наличия иконки отправки координат
+        composeTestRule.onNodeWithContentDescription("Send Coordinates").assertExists()
     }
 }
