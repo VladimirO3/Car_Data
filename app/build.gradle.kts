@@ -24,11 +24,16 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Позволяет Firebase Crashlytics автоматически загружать файлы сопоставления (mapping)
+            configure<com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension> {
+                mappingFileUploadEnabled = true
+            }
         }
     }
     compileOptions {
@@ -38,6 +43,7 @@ android {
     buildFeatures {
         compose = true
         viewBinding = true
+        resValues = true
     }
     dependenciesInfo {
         includeInApk = true
@@ -47,7 +53,8 @@ android {
 }
 
 dependencies {
-    implementation(libs.firebase.config)
+    implementation(libs.androidx.navigation.runtime.ktx)
+	implementation(libs.firebase.config)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.crashlytics)
     implementation(libs.firebase.analytics)
@@ -62,7 +69,16 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.material)
     implementation(libs.play.services.location)
+    implementation("androidx.core:core-splashscreen:1.2.0")
+    implementation("androidx.navigation:navigation-compose:2.4.0-alpha04")
+    implementation("androidx.activity:activity-compose:1.3.0-rc02")
+// Accompanist
+    implementation("com.google.accompanist:accompanist-pager:0.14.0")
+// Pager
+    implementation("com.google.accompanist:accompanist-pager-indicators:0.14.0")
+// Pager Indicators
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)
@@ -74,4 +90,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
 }
