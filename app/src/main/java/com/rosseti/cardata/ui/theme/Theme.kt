@@ -1,3 +1,6 @@
+/**
+ * © 2026 Osetrov V.V. Все права защищены.
+ */
 package com.rosseti.cardata.ui.theme
 
 import android.app.Activity

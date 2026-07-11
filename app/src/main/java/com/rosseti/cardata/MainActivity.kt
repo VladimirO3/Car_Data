@@ -1,5 +1,6 @@
 /**
  * @Author Osetrov.V.V.
+ * © 2026 Osetrov V.V. Все права защищены.
  */
 package com.rosseti.cardata
 
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -425,7 +427,8 @@ fun MainLocationScreen(
             history = viewModel.tripHistory,
             isRussian = viewModel.isRussian.value,
             onBack = { currentScreen = Screen.MAIN },
-            onShare = { shareTripHistory(context) }
+            onShare = { shareTripHistory(context) },
+            onClear = { viewModel.clearHistory() }
         )
     } else {
         MainLocationContent(
@@ -465,10 +468,34 @@ fun HistoryScreen(
     history: List<String>,
     isRussian: Boolean,
     onBack: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onClear: () -> Unit
 ) {
     val title = if (isRussian) "История рейсов" else "Trip History"
     val emptyMsg = if (isRussian) "История пока пуста" else "History is empty"
+    val clearTitle = if (isRussian) "Очистить историю?" else "Clear history?"
+    val clearMsg = if (isRussian) "Это действие нельзя отменить." else "This action cannot be undone."
+    val confirmText = if (isRussian) "Удалить" else "Clear"
+    val cancelText = if (isRussian) "Отмена" else "Cancel"
+    
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(clearTitle) },
+            text = { Text(clearMsg) },
+            confirmButton = {
+                Button(onClick = {
+                    onClear()
+                    showDeleteDialog = false
+                }) { Text(confirmText) }
+            },
+            dismissButton = {
+                Button(onClick = { showDeleteDialog = false }) { Text(cancelText) }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -480,6 +507,11 @@ fun HistoryScreen(
                     }
                 },
                 actions = {
+                    if (history.isNotEmpty()) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Clear History")
+                        }
+                    }
                     IconButton(onClick = onShare) {
                         Icon(Icons.Default.Share, contentDescription = "Share")
                     }
@@ -564,7 +596,7 @@ fun MainLocationContent(
     val stopLabel = if (isRussian) "Стоп" else "Stop"
     val winterLabel = if (isRussian) "Зима (+10%)" else "Winter (+10%)"
     val springLabel = if (isRussian) "Весна (+10%)" else "Spring (+10%)"
-    val copyrightLabel = if (isRussian) "© 2026. Все права защищены." else "© 2026. All rights reserved."
+    val copyrightLabel = if (isRussian) "© 2026 Osetrov V.V. Все права защищены." else "© 2026 Osetrov V.V. All rights reserved."
     val exitDesc = if (isRussian) "Выход" else "Exit"
     val shareDesc = if (isRussian) "Отправить координаты" else "Send Coordinates"
     val historyDesc = if (isRussian) "История поездок" else "Trip History"
@@ -1027,7 +1059,8 @@ fun PreviewHistoryScreen() {
             ),
             isRussian = true,
             onBack = {},
-            onShare = {}
+            onShare = {},
+            onClear = {}
         )
     }
 }

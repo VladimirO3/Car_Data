@@ -78,6 +78,7 @@
                 <li>Background operation via Foreground Service with dynamic notifications (speedometer, trip, speed).</li>
                 <li>In-app OTA updates via Firebase Remote Config.</li>
                 <li>Instant coordinate sharing feature (Google Maps link).</li>
+                <li>System-level compatibility: Bluetooth permissions for power stats polling on Android 15+.</li>
             </ul>
         </section>
 
@@ -178,6 +179,7 @@
                 <li><strong>Input Protection</strong>: Fields are disabled during active trips to prevent data corruption.</li>
                 <li><strong>GPS Guard</strong>: Force-stops the trip and notifies the user if GPS is disabled during a session.</li>
                 <li><strong>ANR Prevention</strong>: Early foreground notification launch in Service's <span class="code">onCreate</span>.</li>
+                <li><strong>System Compatibility</strong>: Includes Bluetooth permissions to resolve `BluetoothPowerStatsCollector` errors on Android 15+.</li>
             </ul>
         </section>
 

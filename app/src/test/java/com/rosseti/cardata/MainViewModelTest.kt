@@ -47,6 +47,7 @@ class MainViewModelTest {
         `when`(repository.getFieldValue("fuel")).thenReturn(50f)
         `when`(repository.getFieldValue("fuelStandart")).thenReturn(10f)
         `when`(repository.getMaxSpeed()).thenReturn("120")
+        `when`(repository.getCurrentSpeed()).thenReturn(60f)
         `when`(repository.getIsRussian()).thenReturn(false)
         
         // Re-init to trigger loading
@@ -66,6 +67,9 @@ class MainViewModelTest {
         
         assertEquals("Max Speed (km/h)", viewModel.fields[4].label)
         assertEquals("120", viewModel.fields[4].value)
+
+        assertEquals("Current Speed (km/h)", viewModel.fields[5].label)
+        assertEquals("60", viewModel.fields[5].value)
     }
 
     @Test
@@ -79,6 +83,7 @@ class MainViewModelTest {
         assertEquals("Остаток топлива", viewModel.fields[2].label)
         assertEquals("Норма расхода", viewModel.fields[3].label)
         assertEquals("Макс. скорость (км/ч)", viewModel.fields[4].label)
+        assertEquals("Текущая скорость (км/ч)", viewModel.fields[5].label)
     }
 
     @Test
@@ -90,10 +95,35 @@ class MainViewModelTest {
         
         assertTrue(viewModel.isTripStarted.value)
         verify(repository).saveTripStarted(true)
-        verify(repository).saveTotalDistance(0f)
+        verify(repository, times(2)).saveTotalDistance(0f)
         verify(repository).saveMaxSpeed("0")
-        verify(repository).saveFieldValue("km", 100.0f)
-        verify(repository).saveFieldValue("fuel", 50.0f)
+        verify(repository, times(2)).saveFieldValue("km", 100.0f)
+        verify(repository, times(2)).saveFieldValue("fuel", 50.0f)
+        
+        assertEquals("0.00", viewModel.fields[1].value) // trip_km reset
+        assertEquals("0", viewModel.fields[5].value) // current_speed reset
+    }
+
+    @Test
+    fun `onStopTrip saves trip record to history`() {
+        `when`(repository.getFieldValue("km")).thenReturn(100f)
+        `when`(repository.getFieldValue("fuel")).thenReturn(50f)
+        `when`(repository.getFieldValue("fuelStandart")).thenReturn(10f)
+        `when`(repository.getStartTime()).thenReturn(System.currentTimeMillis() - 3600000) // 1 hour ago
+        `when`(repository.getIsRussian()).thenReturn(true)
+        
+        viewModel = MainViewModel(repository)
+        viewModel.onStartTrip()
+        
+        // Travel 100 km
+        `when`(repository.getTotalDistance()).thenReturn(100000f)
+        viewModel.refreshDistance()
+        
+        viewModel.onStopTrip()
+        
+        verify(repository).saveTripRecord(any())
+        verify(repository).saveTripStarted(false)
+        verify(repository, times(2)).saveTotalDistance(0f)
     }
 
     @Test

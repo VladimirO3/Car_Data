@@ -1,3 +1,6 @@
+/**
+ * © 2026 Osetrov V.V. Все права защищены.
+ */
 package com.rosseti.cardata
 
 import android.annotation.SuppressLint
@@ -97,19 +100,17 @@ class LocationService : Service() {
     @SuppressLint("MissingPermission")
     private fun updateNotification(speedKmh: Float, totalDistanceMeters: Float) {
         val traveledKm = totalDistanceMeters / 1000f
-        val baseKm = repository.getFieldValue("km")
-        val currentTotalKm = baseKm + traveledKm
         
         val isRussian = repository.getIsRussian()
         
         val title = if (isRussian) "TrackLit: Поездка активна" else "TrackLit: Trip Active"
         val contentFormat = if (isRussian) {
-            "Спидометр: %.2f км | Путь: %.2f км | Скорость: %.0f км/ч"
+            "Скорость: %.0f км/ч | Путь: %.2f км"
         } else {
-            "Odometer: %.2f km | Trip: %.2f km | Speed: %.0f km/h"
+            "Speed: %.0f km/h | Trip: %.2f km"
         }
         
-        val formattedContent = String.format(java.util.Locale.US, contentFormat, currentTotalKm, traveledKm, speedKmh)
+        val formattedContent = String.format(java.util.Locale.US, contentFormat, speedKmh, traveledKm)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)

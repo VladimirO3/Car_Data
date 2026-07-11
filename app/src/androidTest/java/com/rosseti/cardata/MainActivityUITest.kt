@@ -30,6 +30,7 @@ class MainActivityUITest {
         composeTestRule.onNodeWithText("Remaining Fuel").assertExists()
         composeTestRule.onNodeWithText("Fuel Consumption Rate").assertExists()
         composeTestRule.onNodeWithText("Max Speed (km/h)").assertExists()
+        composeTestRule.onNodeWithText("Current Speed (km/h)").assertExists()
     }
 
     @Test
@@ -47,6 +48,26 @@ class MainActivityUITest {
         composeTestRule.onNodeWithText("Остаток топлива").assertExists()
         composeTestRule.onNodeWithText("Норма расхода").assertExists()
         composeTestRule.onNodeWithText("Макс. скорость (км/ч)").assertExists()
+        composeTestRule.onNodeWithText("Текущая скорость (км/ч)").assertExists()
+    }
+
+    @Test
+    fun testHistoryScreenNavigationAndClear() {
+        // Click on History icon
+        composeTestRule.onNodeWithContentDescription("Trip History").performClick()
+
+        // Check if History screen is displayed
+        composeTestRule.onNodeWithText("Trip History").assertExists()
+        
+        // If there were records, the Clear icon would be there. 
+        // We can't easily mock the history here without a custom test rule or DI,
+        // but we can check if the button exists if history is not empty.
+        
+        // Go back
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        
+        // Check if Main screen is displayed again
+        composeTestRule.onNodeWithText("TrackLit").assertExists()
     }
 
     @Test
@@ -67,7 +88,7 @@ class MainActivityUITest {
 
     @Test
     fun testTripStartedMarkerVisibility() {
-        // Изначально маркера нет (в левом верхнем углу)
+        // Изначально маркера нет (в верхнем баре)
         composeTestRule.onNodeWithText("● TRIP").assertDoesNotExist()
 
         // Кнопка Старт должна существовать
@@ -75,16 +96,10 @@ class MainActivityUITest {
     }
 
     @Test
-    fun testLogoAndExitIconExistence() {
-        // Проверка наличия логотипа (по описанию)
-        composeTestRule.onNodeWithContentDescription("Logo").assertExists()
-        // Проверка наличия иконки выхода
+    fun testIconsExistence() {
+        // Проверка наличия иконок в верхней панели
         composeTestRule.onNodeWithContentDescription("Exit").assertExists()
-    }
-
-    @Test
-    fun testShareLocationIconExistence() {
-        // Проверка наличия иконки отправки координат
         composeTestRule.onNodeWithContentDescription("Send Coordinates").assertExists()
+        composeTestRule.onNodeWithContentDescription("Trip History").assertExists()
     }
 }

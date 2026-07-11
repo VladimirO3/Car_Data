@@ -46,17 +46,19 @@ class UpdateManagerTest {
         `when`(mockContext.packageManager).thenReturn(mockPackageManager)
         `when`(mockContext.packageName).thenReturn("com.rosseti.cardata")
         `when`(mockPackageManager.getPackageInfo(anyString(), anyInt())).thenReturn(mockPackageInfo)
+        // Имитируем longVersionCode через рефлексию только если это необходимо, 
+        // но здесь проще просто замокать возвращаемое значение в UpdateManager если бы это был метод.
+        // Так как это поле, мы полагаемся на то что в Unit тестах PackageInfo доступен.
+        // Ошибка NoSuchFieldException говорит о том, что в используемой версии SDK для тестов этого поля нет.
         mockPackageInfo.versionCode = 10
-        // Для новых API
-        val field: Field = PackageInfo::class.java.getField("longVersionCode")
-        field.set(mockPackageInfo, 10L)
+        try {
+            val field: Field = PackageInfo::class.java.getField("longVersionCode")
+            field.set(mockPackageInfo, 10L)
+        } catch (e: NoSuchFieldException) {
+            // Если поля нет (старый SDK в тестах), игнорируем
+        }
 
-        updateManager = UpdateManager(mockContext)
-
-        // Используем рефлексию, чтобы подменить private поле remoteConfig в UpdateManager
-        val remoteConfigField = UpdateManager::class.java.getDeclaredField("remoteConfig")
-        remoteConfigField.isAccessible = true
-        remoteConfigField.set(updateManager, mockRemoteConfig)
+        updateManager = UpdateManager(mockContext, mockRemoteConfig)
     }
 
     @Test

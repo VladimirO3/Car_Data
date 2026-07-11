@@ -1,5 +1,6 @@
 /**
  * @Author Osetrov.V.V.
+ * © 2026 Osetrov V.V. Все права защищены.
  */
 package com.rosseti.cardata
 
@@ -167,9 +168,14 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     fun loadHistory() {
         tripHistory.clear()
         val historyStr = repository.getTripHistory()
-        if (historyStr.isNotEmpty()) {
+        if (!historyStr.isNullOrEmpty()) {
             tripHistory.addAll(historyStr.split("\n").reversed())
         }
+    }
+
+    fun clearHistory() {
+        repository.clearTripHistory()
+        tripHistory.clear()
     }
 
     /**

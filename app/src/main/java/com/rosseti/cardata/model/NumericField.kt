@@ -1,6 +1,9 @@
 /**
  * @Author Osetrov.V.V.
  */
+/**
+ * © 2026 Osetrov V.V. Все права защищены.
+ */
 package com.rosseti.cardata.model
 
 /**

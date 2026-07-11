@@ -1,3 +1,6 @@
+/**
+ * © 2026 Osetrov V.V. Все права защищены.
+ */
 package com.rosseti.cardata
 
 import android.app.AlertDialog
@@ -21,9 +24,10 @@ import androidx.core.net.toUri
  * Класс для управления процессом обновления приложения через Firebase Remote Config.
  * Позволяет проверять наличие новой версии, скачивать APK и инициировать установку.
  */
-class UpdateManager(private val context: Context) {
-
+class UpdateManager(
+    private val context: Context,
     private val remoteConfig: FirebaseRemoteConfig = FirebaseRemoteConfig.getInstance()
+) {
 
     init {
         val configSettings = FirebaseRemoteConfigSettings.Builder()

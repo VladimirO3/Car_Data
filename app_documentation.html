@@ -32,11 +32,11 @@
             <tr><th>Метод</th><th>Описание</th></tr>
             <tr><td class="method-name">onCreate()</td><td>Инициализирует UI, регистрирует слушателей настроек и проверяет состояние GPS.</td></tr>
             <tr><td class="method-name">onStartClicked()</td><td>Проверяет GPS и разрешения (включая фоновые), затем инициирует запуск рейса.</td></tr>
+            <tr><td class="method-name">checkLocationPermissions()</td><td>Запрашивает права на геолокацию и уведомления (Android 13+).</td></tr>
             <tr><td class="method-name">startTripService()</td><td>Запускает Foreground Service для фонового отслеживания.</td></tr>
             <tr><td class="method-name">onStopClicked()</td><td>Останавливает службу и сохраняет финальные данные через ViewModel.</td></tr>
-            <tr><td class="method-name">showGpsDisabledDialog()</td><td>Отображает критическое окно с требованием включить GPS.</td></tr>
-            <tr><td class="method-name">showRationaleDialog()</td><td>Показывает пользователю обоснование необходимости разрешений на геолокацию.</td></tr>
         </table>
+        <p><i>Примечание: В манифест добавлены разрешения Bluetooth для корректной работы системного сбора статистики энергопотребления на Android 15+.</i></p>
     </div>
 
     <div class="class-box">

@@ -1,5 +1,6 @@
 /**
  * @Author Osetrov.V.V.
+ * © 2026 Osetrov V.V. Все права защищены.
  */
 package com.rosseti.cardata.data
 
@@ -126,6 +127,13 @@ class SettingsRepository(context: Context) {
      * Возвращает историю поездок.
      */
     fun getTripHistory(): String = sharedPrefs.getString(KEY_TRIP_HISTORY, "") ?: ""
+
+    /**
+     * Очищает историю поездок.
+     */
+    fun clearTripHistory() {
+        sharedPrefs.edit { remove(KEY_TRIP_HISTORY) }
+    }
 
     companion object {
         private const val KEY_TOTAL_DISTANCE = "total_distance"
