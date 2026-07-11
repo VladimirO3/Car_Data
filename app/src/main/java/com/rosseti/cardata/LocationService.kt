@@ -57,14 +57,15 @@ class LocationService : Service() {
                         val distance = last.distanceTo(location)
                         
                         // Рассчитываем скорость: приоритет датчику, иначе считаем по времени и расстоянию
-                        val speedMps = if (location.hasSpeed()) {
+                        val rawSpeedMps = if (location.hasSpeed()) {
                             location.speed
                         } else {
                             val timeDelta = (location.time - last.time) / 1000f
                             if (timeDelta > 0.5f) distance / timeDelta else 0f
                         }
                         
-                        val speedKmh = speedMps * 3.6f
+                        // Применяем порог для фильтрации шума GPS при стоянке (менее ~1.8 км/ч)
+                        val speedKmh = if (rawSpeedMps < 0.5f) 0f else rawSpeedMps * 3.6f
                         
                         // Сохраняем мгновенную скорость
                         repository.saveCurrentSpeed(speedKmh)

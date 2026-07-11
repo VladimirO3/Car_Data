@@ -21,12 +21,14 @@ import android.util.Log
 import android.widget.Toast
 import android.widget.Toast.makeText
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -212,7 +214,9 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         
-        playWelcomeMusic()
+        if (savedInstanceState == null) {
+            playWelcomeMusic()
+        }
 
         val prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE)
         prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
@@ -236,11 +240,17 @@ class MainActivity : ComponentActivity() {
     private fun playWelcomeMusic() {
         try {
             mediaPlayer = MediaPlayer.create(this, R.raw.welcome_music)
-            mediaPlayer?.setOnCompletionListener {
-                it.release()
-                mediaPlayer = null
-            }
             mediaPlayer?.start()
+            lifecycleScope.launch {
+                delay(60000)
+                mediaPlayer?.let {
+                    if (it.isPlaying) {
+                        it.stop()
+                    }
+                    it.release()
+                    mediaPlayer = null
+                }
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error playing welcome music", e)
         }
@@ -535,6 +545,7 @@ fun MainLocationContent(
     val currentTotalKm = fields.getOrNull(0)?.value?.toFloatOrNull() ?: 0f
     val currentRemainingFuel = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
     val currentMaxSpeed = fields.getOrNull(4)?.value?.toFloatOrNull() ?: 0f
+    val currentSpeed = fields.getOrNull(5)?.value?.toFloatOrNull() ?: 0f
     
     val localContext = LocalContext.current
     val scrollStateLeft = rememberScrollState()
@@ -651,13 +662,13 @@ fun MainLocationContent(
             if (isLandscape) {
                 Column(modifier = Modifier.fillMaxSize().padding(5.dp)) {
                     val landscapeStats = if (isRussian) {
-                        "Спидометр: %.2f км | Топливо: %.2f л | Макс. скорость: %.0f км/ч"
+                        "Спидометр: %.2f км | Топливо: %.2f л | Скорость: %.0f км/ч | Макс: %.0f км/ч"
                     } else {
-                        "Speedometer: %.2f km | Fuel: %.2f L | Max Speed: %.0f km/h"
+                        "Speedometer: %.2f km | Fuel: %.2f L | Speed: %.0f km/h | Max: %.0f km/h"
                     }
                     Text(
                         text = String.format(Locale.US, landscapeStats,
-                            currentTotalKm, currentRemainingFuel, currentMaxSpeed),
+                            currentTotalKm, currentRemainingFuel, currentSpeed, currentMaxSpeed),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.secondary,
@@ -712,15 +723,7 @@ fun MainLocationContent(
                                 enabled = isTripStarted
                             ) { Text(stopLabel) }
 
-                            Spacer(modifier = Modifier.height(5.dp))
-
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                                contentDescription = "Logo",
-                                modifier = Modifier.size(90.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(5.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                                 Row(
@@ -744,13 +747,13 @@ fun MainLocationContent(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     val portraitStats = if (isRussian) {
-                        "Спидометр: %.2f км\nОстаток топлива: %.2f л\nМакс. скорость: %.0f км/ч"
+                        "Спидометр: %.2f км\nТопливо: %.2f л | Скорость: %.0f км/ч\nМакс. скорость: %.0f км/ч"
                     } else {
-                        "Speedometer: %.2f km\nRemaining Fuel: %.2f L\nMax Speed: %.0f km/h"
+                        "Speedometer: %.2f km\nFuel: %.2f L | Speed: %.0f km/h\nMax Speed: %.0f km/h"
                     }
                     Text(
                         text = String.format(Locale.US, portraitStats,
-                            currentTotalKm, currentRemainingFuel, currentMaxSpeed),
+                            currentTotalKm, currentRemainingFuel, currentSpeed, currentMaxSpeed),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.secondary,
@@ -786,13 +789,6 @@ fun MainLocationContent(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                        contentDescription = "Logo",
-                        modifier = Modifier.size(100.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(5.dp))
                     Text(
                         text = copyrightLabel,
                         modifier = Modifier.fillMaxWidth().padding(bottom = 5.dp),
