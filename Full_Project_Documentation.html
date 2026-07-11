@@ -59,26 +59,25 @@
         <a href="#viewmodel">5. MainViewModel</a>
         <a href="#location-service">6. LocationService</a>
         <a href="#repository">7. SettingsRepository</a>
-        <a href="#updates">8. UpdateManager (OTA)</a>
+        <a href="#instruction">8. User Instruction</a>
         <a href="#logger">9. AppLogger & Sharing</a>
         <a href="#stability">10. Stability & Safety</a>
     </div>
 
     <div class="content">
         <h1>TrackLit Technical Documentation</h1>
-        <p>Version: 1.2.0 | Author: Osetrov.V.V. | Language: English | Update: 2026</p>
+        <p>Version: 1.0.1329715 | Author: Osetrov.V.V. | Language: English | Update: 2026</p>
 
         <section id="overview">
             <h2>1. Project Overview</h2>
-            <p><strong>TrackLit</strong> is a professional-grade GPS trip tracker for Android. It automates mileage tracking, records peak speeds, and calculates real-time fuel consumption with seasonal adjustments. The app is optimized for high accuracy and reliable background operation.</p>
+            <p><strong>TrackLit</strong> is a professional-grade GPS trip tracker for Android. It automates mileage tracking and calculates real-time fuel consumption with seasonal adjustments. The app is optimized for high accuracy and reliable background operation.</p>
             <ul class="feature-list">
                 <li>High-sensitivity GPS tracking (2-meter threshold for drift filtering).</li>
                 <li>Dynamic fuel calculation with additive seasonal factors (+10% Winter, +10% Spring).</li>
-                <li>Real-time peak speed recording (integer precision).</li>
                 <li>Background operation via Foreground Service with dynamic notifications (speedometer, trip, speed).</li>
-                <li>In-app OTA updates via Firebase Remote Config.</li>
                 <li>Instant coordinate sharing feature (Google Maps link).</li>
                 <li>System-level compatibility: Bluetooth permissions for power stats polling on Android 15+.</li>
+                <li>Modernized UI: Material 3 Tonal Icon Buttons and grouped action controls.</li>
             </ul>
         </section>
 
@@ -87,11 +86,11 @@
             <p>The project follows the <strong>MVVM (Model-View-ViewModel)</strong> pattern with <strong>Jetpack Compose</strong> for the UI layer and a clean separation of concerns.</p>
             <table>
                 <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
-                <tr><td><strong>UI</strong></td><td>Jetpack Compose</td><td>Declarative, responsive interface (Portrait/Landscape).</td></tr>
+                <tr><td><strong>UI</strong></td><td>Jetpack Compose</td><td>Declarative, responsive interface (Portrait/Landscape) with Material 3.</td></tr>
                 <tr><td><strong>Logic</strong></td><td>Kotlin ViewModel</td><td>Calculations, input validation, and state management.</td></tr>
                 <tr><td><strong>Service</strong></td><td>Foreground Service</td><td>Continuous GPS tracking even when the app is minimized.</td></tr>
                 <tr><td><strong>Storage</strong></td><td>SharedPreferences</td><td>Persistent storage for mileage, fuel, and speed records.</td></tr>
-                <tr><td><strong>Updates</strong></td><td>Firebase Remote Config</td><td>Cloud-based version control and update alerts.</td></tr>
+                <tr><td><strong>Diagnostics</strong></td><td>Firebase Crashlytics</td><td>Automatic mapping file upload for de-obfuscated crash reports.</td></tr>
             </table>
         </section>
 
@@ -125,7 +124,7 @@
             <table class="method-table">
                 <tr><td>calculateRemainingFuel()</td><td>Uses traveled distance, fuel rate, and time (idle) to update tank levels.</td></tr>
                 <tr><td>updateStateFromDistance()</td><td>Refreshes UI state when the tracker detects a 1-meter movement.</td></tr>
-                <tr><td>onStartTrip()</td><td><strong>Locks input fields</strong> and resets session-based peak speed.</td></tr>
+                <tr><td>onStartTrip()</td><td><strong>Locks input fields</strong>.</td></tr>
                 <tr><td>onStopTrip()</td><td><strong>Unlocks input fields</strong> and performs final data persistence.</td></tr>
             </table>
         </section>
@@ -151,15 +150,18 @@
             </table>
         </section>
 
-        <section id="updates">
-            <span class="tag tag-service">Updates</span>
-            <h2>8. UpdateManager (OTA)</h2>
-            <p>Enables delivery of new APKs without the Google Play Store.</p>
-            <table class="method-table">
-                <tr><td>checkForUpdates()</td><td>Compares server-side <span class="code">latest_version_code</span> with the local app version.</td></tr>
-                <tr><td>installApk()</td><td>Leverages <span class="code">FileProvider</span> and <span class="code">intent.ACTION_VIEW</span> to launch the installer.</td></tr>
-            </table>
+        <section id="instruction">
+            <span class="tag tag-ui">UI Layer</span>
+            <h2>8. User Instruction</h2>
+            <p>Provides a step-by-step guide on how to use the application effectively.</p>
+            <ul>
+                <li><strong>Onboarding</strong>: Explains initial data entry (odometer/fuel).</li>
+                <li><strong>Trip Lifecycle</strong>: Guides through Start, Monitoring, and Stop phases.</li>
+                <li><strong>Seasonal Factors</strong>: Clarifies how Winter/Spring modes affect calculations.</li>
+                <li><strong>Location Sharing</strong>: Instructions on sending coordinates to colleagues.</li>
+            </ul>
         </section>
+
 
         <section id="logger">
             <span class="tag tag-data">Diagnostics</span>
@@ -180,6 +182,7 @@
                 <li><strong>GPS Guard</strong>: Force-stops the trip and notifies the user if GPS is disabled during a session.</li>
                 <li><strong>ANR Prevention</strong>: Early foreground notification launch in Service's <span class="code">onCreate</span>.</li>
                 <li><strong>System Compatibility</strong>: Includes Bluetooth permissions to resolve `BluetoothPowerStatsCollector` errors on Android 15+.</li>
+                <li><strong>Test Coverage</strong>: 13 unit tests verifying history management, fuel calculations, and distance logic.</li>
             </ul>
         </section>
 

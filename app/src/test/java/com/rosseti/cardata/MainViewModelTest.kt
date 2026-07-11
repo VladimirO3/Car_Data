@@ -65,11 +65,8 @@ class MainViewModelTest {
         assertEquals("Fuel Consumption Rate", viewModel.fields[3].label)
         assertEquals("10.00", viewModel.fields[3].value)
         
-        assertEquals("Max Speed (km/h)", viewModel.fields[4].label)
-        assertEquals("120", viewModel.fields[4].value)
-
-        assertEquals("Current Speed (km/h)", viewModel.fields[5].label)
-        assertEquals("60", viewModel.fields[5].value)
+        assertEquals("Current Speed (km/h)", viewModel.fields[4].label)
+        assertEquals("60", viewModel.fields[4].value)
     }
 
     @Test
@@ -82,8 +79,7 @@ class MainViewModelTest {
         assertEquals("Дистанция (км)", viewModel.fields[1].label)
         assertEquals("Остаток топлива", viewModel.fields[2].label)
         assertEquals("Норма расхода", viewModel.fields[3].label)
-        assertEquals("Макс. скорость (км/ч)", viewModel.fields[4].label)
-        assertEquals("Текущая скорость (км/ч)", viewModel.fields[5].label)
+        assertEquals("Текущая скорость (км/ч)", viewModel.fields[4].label)
     }
 
     @Test
@@ -101,7 +97,7 @@ class MainViewModelTest {
         verify(repository, times(2)).saveFieldValue("fuel", 50.0f)
         
         assertEquals("0.00", viewModel.fields[1].value) // trip_km reset
-        assertEquals("0", viewModel.fields[5].value) // current_speed reset
+        assertEquals("0", viewModel.fields[4].value) // current_speed reset
     }
 
     @Test
@@ -167,26 +163,6 @@ class MainViewModelTest {
     }
 
     @Test
-    fun `max speed is updated only if current speed is higher`() {
-        viewModel.onStartTrip()
-        
-        // Current speed 80 km/h
-        `when`(repository.getCurrentSpeed()).thenReturn(80.4f)
-        `when`(repository.getMaxSpeed()).thenReturn("0")
-        
-        viewModel.refreshDistance()
-        verify(repository).saveMaxSpeed("80") // Integer expected
-        
-        // Current speed 60 km/h (should not update record)
-        `when`(repository.getMaxSpeed()).thenReturn("80")
-        `when`(repository.getCurrentSpeed()).thenReturn(60f)
-        
-        viewModel.refreshDistance()
-        // verify saveMaxSpeed was called only once (with "80")
-        verify(repository, times(1)).saveMaxSpeed("80")
-    }
-
-    @Test
     fun `seasonal factors are additive`() {
         `when`(repository.getFieldValue("km")).thenReturn(0f)
         `when`(repository.getFieldValue("fuel")).thenReturn(100f)
@@ -215,5 +191,39 @@ class MainViewModelTest {
 
         viewModel.onFieldChange(0, "123.45")
         assertEquals("123.45", viewModel.fields[0].value)
+    }
+
+    @Test
+    fun `addDistance updates state and repository`() {
+        viewModel.onStartTrip()
+        `when`(repository.getTotalDistance()).thenReturn(0f)
+        
+        viewModel.addDistance(500f) // 500 meters
+        
+        verify(repository).saveTotalDistance(500f)
+        assertEquals("0.50", viewModel.fields[1].value) // 0.5 km
+    }
+
+    @Test
+    fun `loadHistory parses and reverses history correctly`() {
+        val history = "Record 1\nRecord 2\nRecord 3"
+        `when`(repository.getTripHistory()).thenReturn(history)
+        
+        viewModel.loadHistory()
+        
+        assertEquals(3, viewModel.tripHistory.size)
+        assertEquals("Record 3", viewModel.tripHistory[0])
+        assertEquals("Record 2", viewModel.tripHistory[1])
+        assertEquals("Record 1", viewModel.tripHistory[2])
+    }
+
+    @Test
+    fun `clearHistory calls repository and clears list`() {
+        viewModel.tripHistory.add("Some record")
+        
+        viewModel.clearHistory()
+        
+        verify(repository).clearTripHistory()
+        assertTrue(viewModel.tripHistory.isEmpty())
     }
 }

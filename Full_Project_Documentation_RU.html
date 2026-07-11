@@ -58,26 +58,26 @@
         <a href="#main-activity">4. MainActivity</a>
         <a href="#viewmodel">5. MainViewModel</a>
         <a href="#location-service">6. LocationService</a>
-        <a href="#repository">7. SettingsRepository</a>
-        <a href="#updates">8. UpdateManager (OTA)</a>
+        <a href="#repository">7. Обзор проекта</a>
+        <a href="#instruction">8. Инструкция пользователя</a>
         <a href="#logger">9. AppLogger и экспорт</a>
         <a href="#stability">10. Стабильность и Безопасность</a>
     </div>
 
     <div class="content">
         <h1>Техническая документация TrackLit</h1>
-        <p>Версия: 1.2.0 | Автор: Osetrov.V.V. | Язык документа: Русский | Обновлено: 2026</p>
+        <p>Версия: 1.0.1329715 | Автор: Osetrov.V.V. | Язык документа: Русский | Обновлено: 2026</p>
 
         <section id="overview">
             <h2>1. Обзор проекта</h2>
-            <p><strong>TrackLit</strong> — это профессиональный GPS-трекер рейсов для Android. Приложение автоматизирует учет пробега, фиксирует рекорды скорости и рассчитывает расход топлива в реальном времени с учетом сезонных коэффициентов. Оптимизировано для работы в фоновом режиме и высокой точности данных.</p>
+            <p><strong>TrackLit</strong> — это профессиональный GPS-трекер рейсов для Android. Приложение автоматизирует учет пробега и рассчитывает расход топлива в реальном времени с учетом сезонных коэффициентов. Оптимизировано для работы в фоновом режиме и высокой точности данных.</p>
             <ul class="feature-list">
                 <li>Высокая чувствительность GPS (порог срабатывания 2 метра для фильтрации дрейфа).</li>
                 <li>Динамический расчет топлива с сезонными надбавками (+10% Зима, +10% Весна).</li>
-                <li>Фиксация максимальной скорости за рейс (целые числа).</li>
                 <li>Работа через Foreground Service с динамическим уведомлением (спидометр, путь, скорость).</li>
-                <li>Обновления "по воздуху" (OTA) через Firebase Remote Config.</li>
                 <li>Функция мгновенной отправки текущих координат (Google Maps link).</li>
+                <li>Совместимость с Android 15+: Добавлены Bluetooth разрешения для корректного сбора статистики питания системой.</li>
+                <li>Обновленный интерфейс: Использование Material 3 FilledTonalIconButton и группировка кнопок управления.</li>
             </ul>
         </section>
 
@@ -86,11 +86,11 @@
             <p>Проект следует паттерну <strong>MVVM (Model-View-ViewModel)</strong> с использованием <strong>Jetpack Compose</strong> для UI-слоя.</p>
             <table>
                 <tr><th>Слой</th><th>Технология</th><th>Назначение</th></tr>
-                <tr><td><strong>UI</strong></td><td>Jetpack Compose</td><td>Декларативный интерфейс, адаптация под ориентацию экрана.</td></tr>
+                <tr><td><strong>UI</strong></td><td>Jetpack Compose</td><td>Декларативный интерфейс Material 3, адаптация под ориентацию экрана.</td></tr>
                 <tr><td><strong>Logic</strong></td><td>Kotlin ViewModel</td><td>Расчеты, валидация ввода и управление состоянием.</td></tr>
                 <tr><td><strong>Service</strong></td><td>Foreground Service</td><td>Бесперебойное GPS-отслеживание при свернутом приложении.</td></tr>
                 <tr><td><strong>Storage</strong></td><td>SharedPreferences</td><td>Постоянное хранение пробега, топлива и настроек.</td></tr>
-                <tr><td><strong>Updates</strong></td><td>Firebase Remote Config</td><td>Облачное управление версиями и оповещения об обновлениях.</td></tr>
+                <tr><td><strong>Diagnostics</strong></td><td>Firebase Crashlytics</td><td>Автоматическая загрузка mapping-файлов для деобфускации логов.</td></tr>
             </table>
         </section>
 
@@ -124,7 +124,7 @@
             <table class="method-table">
                 <tr><td>calculateRemainingFuel()</td><td>Расчет остатка в баке на основе пути, нормы и времени работы.</td></tr>
                 <tr><td>updateStateFromDistance()</td><td>Обновление UI при фиксации перемещения на 1 метр.</td></tr>
-                <tr><td>onStartTrip()</td><td><strong>Блокировка полей ввода</strong> и сброс текущего рекорда скорости.</td></tr>
+                <tr><td>onStartTrip()</td><td><strong>Блокировка полей ввода</strong>.</td></tr>
                 <tr><td>onStopTrip()</td><td><strong>Разблокировка полей</strong> и фиксация финальных данных в памяти.</td></tr>
             </table>
         </section>
@@ -150,15 +150,18 @@
             </table>
         </section>
 
-        <section id="updates">
-            <span class="tag tag-service">Updates</span>
-            <h2>8. UpdateManager (OTA)</h2>
-            <p>Система доставки новых версий APK без использования Google Play.</p>
-            <table class="method-table">
-                <tr><td>checkForUpdates()</td><td>Сравнение <span class="code">latest_version_code</span> с сервера с локальной версией.</td></tr>
-                <tr><td>installApk()</td><td>Использование <span class="code">FileProvider</span> и <span class="code">intent.ACTION_VIEW</span> для запуска установщика.</td></tr>
-            </table>
+        <section id="instruction">
+            <span class="tag tag-ui">UI Layer</span>
+            <h2>8. Инструкция пользователя</h2>
+            <p>Пошаговое руководство по эксплуатации приложения.</p>
+            <ul>
+                <li><strong>Ввод данных</strong>: Описание начальной настройки одометра и топлива.</li>
+                <li><strong>Жизненный цикл рейса</strong>: Старт, мониторинг в фоне и фиксация итогов.</li>
+                <li><strong>Коэффициенты</strong>: Как работают надбавки «Зима» и «Весна».</li>
+                <li><strong>Безопасность</strong>: Инструкция по экстренной отправке координат.</li>
+            </ul>
         </section>
+
 
         <section id="logger">
             <span class="tag tag-data">Diagnostics</span>
@@ -177,7 +180,8 @@
             <ul>
                 <li><strong>Защита ввода</strong>: Поля блокируются во время рейса, чтобы избежать случайного искажения данных.</li>
                 <li><strong>GPS-сторож</strong>: Автоматическая остановка рейса с сохранением данных при потере GPS-сигнала.</li>
-                <li><strong>Защита от вылетов</strong>: Исправлены ошибки запуска Foreground-сервисов на Android 14.</li>
+                <li><strong>Защита от вылетов</strong>: Исправлены ошибки запуска Foreground-сервисов на Android 14+.</li>
+                <li><strong>Тестовое покрытие</strong>: 13 модульных тестов, проверяющих логику истории, расчеты топлива и дистанции.</li>
             </ul>
         </section>
 

@@ -29,7 +29,6 @@ class MainActivityUITest {
         composeTestRule.onNodeWithText("Trip Distance (km)").assertExists()
         composeTestRule.onNodeWithText("Remaining Fuel").assertExists()
         composeTestRule.onNodeWithText("Fuel Consumption Rate").assertExists()
-        composeTestRule.onNodeWithText("Max Speed (km/h)").assertExists()
         composeTestRule.onNodeWithText("Current Speed (km/h)").assertExists()
     }
 
@@ -47,7 +46,6 @@ class MainActivityUITest {
         composeTestRule.onNodeWithText("Дистанция (км)").assertExists()
         composeTestRule.onNodeWithText("Остаток топлива").assertExists()
         composeTestRule.onNodeWithText("Норма расхода").assertExists()
-        composeTestRule.onNodeWithText("Макс. скорость (км/ч)").assertExists()
         composeTestRule.onNodeWithText("Текущая скорость (км/ч)").assertExists()
     }
 

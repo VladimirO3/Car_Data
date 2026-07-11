@@ -16,8 +16,8 @@ android {
         applicationId = "com.rosseti.cardata"
         minSdk = 30
         targetSdk = 37
-        versionCode = ((System.currentTimeMillis() - 1704067200000L) / 60000L).toInt()
-        versionName = "1.0.${versionCode}"
+        versionCode = 1329715
+        versionName = "1.0.1329715"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

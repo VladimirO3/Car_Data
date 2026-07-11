@@ -73,13 +73,6 @@ class LocationService : Service() {
                         // Сохраняем мгновенную скорость
                         repository.saveCurrentSpeed(speedKmh)
                         
-                        // Обновляем максимальную скорость, если текущая выше (и правдоподобна)
-                        val savedMax = repository.getMaxSpeed().toFloatOrNull() ?: 0f
-                        if (speedKmh > savedMax && speedKmh < 250f) {
-                            repository.saveMaxSpeed(String.format(java.util.Locale.US, "%.0f", speedKmh))
-                            AppLogger.d(applicationContext, "Новый рекорд скорости: $speedKmh км/ч")
-                        }
-                        
                         // Игнорируем перемещения менее 2 метров для фильтрации дрейфа одометра
                         if (distance >= 3.0f) {
                             val currentTotal = repository.getTotalDistance()

@@ -29,7 +29,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         private const val ID_KM = "km"
         private const val ID_FUEL = "fuel"
         private const val ID_FUEL_STD = "fuelStandart"
-        private const val ID_MAX_SPEED = "max_speed"
         private const val ID_CURRENT_SPEED = "current_speed_field"
         private const val ID_TRIP_KM = "trip_km"
 
@@ -132,7 +131,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val traveledKm = savedTripDistance / METERS_PER_KM
         val currentTotalKm = baseKm + traveledKm
         
-        val maxSpeedStr = repository.getMaxSpeed()
         val currentSpeed = repository.getCurrentSpeed()
         val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd)
 
@@ -143,9 +141,9 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val currentSpeedStr = formatInteger(currentSpeed)
 
         val labels = if (isRussian.value) {
-            listOf("Спидометр (км)", "Дистанция (км)", "Остаток топлива", "Норма расхода", "Макс. скорость (км/ч)", "Текущая скорость (км/ч)")
+            listOf("Спидометр (км)", "Дистанция (км)", "Остаток топлива", "Норма расхода", "Текущая скорость (км/ч)")
         } else {
-            listOf("Speedometer (km)", "Trip Distance (km)", "Remaining Fuel", "Fuel Consumption Rate", "Max Speed (km/h)", "Current Speed (km/h)")
+            listOf("Speedometer (km)", "Trip Distance (km)", "Remaining Fuel", "Fuel Consumption Rate", "Current Speed (km/h)")
         }
 
         if (fields.isEmpty()) {
@@ -153,15 +151,13 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
             fields.add(NumericField(ID_TRIP_KM, labels[1], tripKmStr))
             fields.add(NumericField(ID_FUEL, labels[2], fuelStr))
             fields.add(NumericField(ID_FUEL_STD, labels[3], fuelStdStr))
-            fields.add(NumericField(ID_MAX_SPEED, labels[4], maxSpeedStr))
-            fields.add(NumericField(ID_CURRENT_SPEED, labels[5], currentSpeedStr))
+            fields.add(NumericField(ID_CURRENT_SPEED, labels[4], currentSpeedStr))
         } else {
             updateField(ID_KM, kmStr, labels[0])
             updateField(ID_TRIP_KM, tripKmStr, labels[1])
             updateField(ID_FUEL, fuelStr, labels[2])
             updateField(ID_FUEL_STD, fuelStdStr, labels[3])
-            updateField(ID_MAX_SPEED, maxSpeedStr, labels[4])
-            updateField(ID_CURRENT_SPEED, currentSpeedStr, labels[5])
+            updateField(ID_CURRENT_SPEED, currentSpeedStr, labels[4])
         }
     }
 
@@ -299,7 +295,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
             repository.saveMaxSpeed(formatInteger(currentSpeed))
         }
         
-        updateField(ID_MAX_SPEED, repository.getMaxSpeed())
         updateField(ID_CURRENT_SPEED, formatInteger(currentSpeed))
 
         val fuelStdField = fields.find { it.id == ID_FUEL_STD }
@@ -332,7 +327,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         repository.saveFieldValue(ID_FUEL, baseFuel)
         
         updateField(ID_TRIP_KM, "0.00")
-        updateField(ID_MAX_SPEED, "0")
         updateField(ID_CURRENT_SPEED, "0")
     }
 
@@ -346,7 +340,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
 
         val finalKm = baseKm + traveledKm
         val remainingFuel = calculateRemainingFuel(traveledKm, fuelStd)
-        val maxSpeed = repository.getMaxSpeed()
 
         // Сохранение записи о рейсе
         val startTimeMillis = repository.getStartTime()
@@ -379,7 +372,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
 
         repository.saveFieldValue(ID_KM, finalKm)
         repository.saveFieldValue(ID_FUEL, remainingFuel)
-        repository.saveMaxSpeed(maxSpeed)
         repository.saveStartTime(0L)
         repository.saveTripStarted(false)
 
@@ -392,7 +384,6 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
 
         updateField(ID_KM, formatDecimal(finalKm))
         updateField(ID_FUEL, formatDecimal(remainingFuel))
-        updateField(ID_MAX_SPEED, maxSpeed)
         updateField(ID_CURRENT_SPEED, "0")
     }
 }

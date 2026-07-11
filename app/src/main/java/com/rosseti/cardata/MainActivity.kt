@@ -15,21 +15,17 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.location.LocationManager
-import android.media.MediaPlayer
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import android.widget.Toast.makeText
 import androidx.activity.ComponentActivity
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,15 +38,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -58,8 +57,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -78,6 +79,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -87,9 +89,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.gms.common.api.ResolvableApiException
@@ -203,8 +203,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private var mediaPlayer: MediaPlayer? = null
-
     /**
      * Вызывается при создании активности. Инициализирует настройки приложения,
      * регистрирует слушателя изменений в [android.content.SharedPreferences] для обновления данных о расстоянии
@@ -216,10 +214,6 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         
-        if (savedInstanceState == null) {
-            playWelcomeMusic()
-        }
-
         val prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE)
         prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
 
@@ -236,25 +230,6 @@ class MainActivity : ComponentActivity() {
                     MainLocationScreen(viewModel, ::onStartClicked, ::onStopClicked)
                 }
             }
-        }
-    }
-
-    private fun playWelcomeMusic() {
-        try {
-            mediaPlayer = MediaPlayer.create(this, R.raw.welcome_music)
-            mediaPlayer?.start()
-            lifecycleScope.launch {
-                delay(60000)
-                mediaPlayer?.let {
-                    if (it.isPlaying) {
-                        it.stop()
-                    }
-                    it.release()
-                    mediaPlayer = null
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error playing welcome music", e)
         }
     }
 
@@ -395,8 +370,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        mediaPlayer?.release()
-        mediaPlayer = null
         unregisterReceiver(gpsStatusReceiver)
         getSharedPreferences("AppPrefs", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
@@ -406,7 +379,7 @@ class MainActivity : ComponentActivity() {
  * Перечисление экранов приложения.
  */
 enum class Screen {
-    MAIN, HISTORY
+    MAIN, HISTORY, INSTRUCTION
 }
 
 /**
@@ -430,6 +403,12 @@ fun MainLocationScreen(
             onShare = { shareTripHistory(context) },
             onClear = { viewModel.clearHistory() }
         )
+    } else if (currentScreen == Screen.INSTRUCTION) {
+        BackHandler { currentScreen = Screen.MAIN }
+        InstructionScreen(
+            isRussian = viewModel.isRussian.value,
+            onBack = { currentScreen = Screen.MAIN }
+        )
     } else {
         MainLocationContent(
             fields = viewModel.fields,
@@ -442,6 +421,7 @@ fun MainLocationScreen(
             onLanguageToggle = { viewModel.toggleLanguage() },
             onFieldChange = viewModel::onFieldChange,
             onHistoryClick = { currentScreen = Screen.HISTORY },
+            onInstructionClick = { currentScreen = Screen.INSTRUCTION },
             onStartClick = {
                 onStart()
                 val kmValue = viewModel.fields.getOrNull(0)?.value ?: ""
@@ -478,6 +458,14 @@ fun HistoryScreen(
     val confirmText = if (isRussian) "Удалить" else "Clear"
     val cancelText = if (isRussian) "Отмена" else "Cancel"
     
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
+        )
+    )
+    
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
@@ -497,64 +485,183 @@ fun HistoryScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(title, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (history.isNotEmpty()) {
-                        IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Clear History")
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text(title, fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        if (history.isNotEmpty()) {
+                            IconButton(onClick = { showDeleteDialog = true }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Clear History")
+                            }
+                        }
+                        IconButton(onClick = onShare) {
+                            Icon(Icons.Default.Share, contentDescription = "Share")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent
+                    )
+                )
+            }
+        ) { paddingValues ->
+            if (history.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                    Text(emptyMsg, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.outline)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+                    items(history) { record ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = record,
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = 13.sp
+                            )
                         }
                     }
-                    IconButton(onClick = onShare) {
-                        Icon(Icons.Default.Share, contentDescription = "Share")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        }
-    ) { paddingValues ->
-        if (history.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                Text(emptyMsg, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.outline)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item { Spacer(modifier = Modifier.height(8.dp)) }
-                items(history) { record ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = record,
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontSize = 13.sp
-                        )
-                    }
+                    item { Spacer(modifier = Modifier.height(16.dp)) }
                 }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }
 }
 
-/**
- * Основной компонент интерфейса пользователя, отвечающий за отображение главного
- */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InstructionScreen(
+    isRussian: Boolean,
+    onBack: () -> Unit
+) {
+    val title = if (isRussian) "Инструкция" else "Instructions"
+    
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
+        )
+    )
+
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text(title, fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                InstructionItem(
+                    number = "1",
+                    title = if (isRussian) "Подготовка к рейсу" else "Preparation",
+                    text = if (isRussian) 
+                        "Перед началом поездки введите текущие показания одометра и количество топлива в баке. Также укажите норму расхода вашего автомобиля." 
+                        else "Before starting, enter current odometer reading, fuel amount, and your vehicle's fuel consumption rate."
+                )
+                InstructionItem(
+                    number = "2",
+                    title = if (isRussian) "Запуск отслеживания" else "Start Tracking",
+                    text = if (isRussian) 
+                        "Нажмите кнопку «Старт». Приложение запросит доступ к GPS. После этого поля ввода заблокируются, и начнется автоматический расчет." 
+                        else "Click 'Start'. The app will request GPS access. Fields will lock, and automatic calculation begins."
+                )
+                InstructionItem(
+                    number = "3",
+                    title = if (isRussian) "Сезонные режимы" else "Seasonal Factors",
+                    text = if (isRussian) 
+                        "Если на улице зима или весна, отметьте соответствующие пункты. Это добавит +10% к расчету расхода топлива для большей точности." 
+                        else "Check Winter or Spring boxes if applicable. This adds +10% to fuel calculation for better accuracy."
+                )
+                InstructionItem(
+                    number = "4",
+                    title = if (isRussian) "Работа в фоне" else "Background Mode",
+                    text = if (isRussian) 
+                        "Вы можете свернуть приложение. В шторке уведомлений будет отображаться актуальная скорость и пройденный путь в реальном времени." 
+                        else "You can minimize the app. Current speed and trip distance will be shown in the notification drawer."
+                )
+                InstructionItem(
+                    number = "5",
+                    title = if (isRussian) "Завершение рейса" else "End Trip",
+                    text = if (isRussian) 
+                        "По прибытии нажмите «Стоп». Данные будут сохранены в историю, а поля ввода снова станут доступны для корректировки." 
+                        else "Click 'Stop' upon arrival. Data will be saved to history, and input fields will unlock."
+                )
+                InstructionItem(
+                    number = "6",
+                    title = if (isRussian) "Дополнительно" else "Extra Features",
+                    text = if (isRussian) 
+                        "Используйте кнопку с иконкой локации, чтобы отправить свои точные координаты через мессенджеры." 
+                        else "Use the location icon button to share your precise coordinates via messaging apps."
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun InstructionItem(number: String, title: String, text: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Row(modifier = Modifier.padding(16.dp)) {
+            Surface(
+                modifier = Modifier.size(24.dp),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                Text(
+                    text = number,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("DefaultLocale", "UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
@@ -569,6 +676,7 @@ fun MainLocationContent(
     onLanguageToggle: () -> Unit,
     onFieldChange: (Int, String) -> Unit,
     onHistoryClick: () -> Unit,
+    onInstructionClick: () -> Unit,
     onStartClick: () -> Unit,
     onStopClick: () -> Unit
 ) {
@@ -576,9 +684,8 @@ fun MainLocationContent(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val currentTotalKm = fields.getOrNull(0)?.value?.toFloatOrNull() ?: 0f
     val currentRemainingFuel = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
-    val currentMaxSpeed = fields.getOrNull(4)?.value?.toFloatOrNull() ?: 0f
-    val currentSpeed = fields.getOrNull(5)?.value?.toFloatOrNull() ?: 0f
-    
+    val speed = fields.getOrNull(5)?.value?.toFloatOrNull() ?: 0f
+
     val localContext = LocalContext.current
     val scrollStateLeft = rememberScrollState()
     val scrollStateRight = rememberScrollState()
@@ -596,238 +703,288 @@ fun MainLocationContent(
     val stopLabel = if (isRussian) "Стоп" else "Stop"
     val winterLabel = if (isRussian) "Зима (+10%)" else "Winter (+10%)"
     val springLabel = if (isRussian) "Весна (+10%)" else "Spring (+10%)"
-    val copyrightLabel = if (isRussian) "© 2026 Osetrov V.V. Все права защищены." else "© 2026 Osetrov V.V. All rights reserved."
+    val copyrightLabel = if (isRussian) "© 2026. Все права защищены." else "© 2026. All rights reserved."
     val exitDesc = if (isRussian) "Выход" else "Exit"
     val shareDesc = if (isRussian) "Отправить координаты" else "Send Coordinates"
     val historyDesc = if (isRussian) "История поездок" else "Trip History"
+    val instructionDesc = if (isRussian) "Инструкция" else "Instructions"
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "TrackLit",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (isTripStarted) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer
-                                )
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "TrackLit",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (isTripStarted) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer
+                                    )
+                                ) {
+                                    Text(
+                                        text = tripLabel,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = (if (isLandscape) Modifier.padding(start = 20.dp) else Modifier).padding(start = 8.dp)
+                        ) {
+                            IconButton(
+                                onClick = onLanguageToggle,
+                                modifier = Modifier.size(30.dp)
                             ) {
                                 Text(
-                                    text = tripLabel,
-                                    fontSize = 10.sp,
+                                    text = if (isRussian) "RU" else "EN",
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            FilledTonalIconButton(
+                                onClick = onInstructionClick,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                ),
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = instructionDesc,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onLanguageToggle,
-                        modifier = if (isLandscape) Modifier.padding(start = 20.dp) else Modifier
-                    ) {
-                        Text(
-                            text = if (isRussian) "RU" else "EN",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onHistoryClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.List,
-                            contentDescription = historyDesc,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    IconButton(onClick = { shareCurrentLocation(localContext) }) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = shareDesc,
-                            tint = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                    IconButton(onClick = {
-                        onStopClick()
-                        (localContext as? ComponentActivity)?.finishAffinity()
-                    }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                            contentDescription = exitDesc,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                )
-            )
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(backgroundBrush)
-        ) {
-            // Декоративный элемент на заднем плане
-            Icon(
-                painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .size(400.dp)
-                    .alpha(0.05f),
-                tint = MaterialTheme.colorScheme.primary
-            )
-
-            if (isLandscape) {
-                Column(modifier = Modifier.fillMaxSize().padding(5.dp)) {
-                    val landscapeStats = if (isRussian) {
-                        "Спидометр: %.2f км | Топливо: %.2f л | Скорость: %.0f км/ч | Макс: %.0f км/ч"
-                    } else {
-                        "Speedometer: %.2f km | Fuel: %.2f L | Speed: %.0f km/h | Max: %.0f km/h"
-                    }
-                    Text(
-                        text = String.format(Locale.US, landscapeStats,
-                            currentTotalKm, currentRemainingFuel, currentSpeed, currentMaxSpeed),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f).verticalScroll(scrollStateLeft),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy((0).dp)
+                    },
+                    actions = {
+                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                FilledTonalIconButton(
+                                    onClick = onHistoryClick,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                    ),
+                                    modifier = Modifier.size(34.dp)
                                 ) {
-                                    fields.forEachIndexed { index, field ->
-                                        key(field.id) {
-                                            OutlinedTextField(
-                                                value = field.value,
-                                                onValueChange = { onFieldChange(index, it) },
-                                                label = { Text(field.label, fontSize = 9.sp) },
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                                modifier = Modifier.width(260.dp),
-                                                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
-                                                readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km" || field.id == "current_speed_field",
-                                                singleLine = true
-                                            )
+                                    Icon(
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = historyDesc,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                FilledTonalIconButton(
+                                    onClick = { shareCurrentLocation(localContext) },
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                    ),
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocationOn,
+                                        contentDescription = shareDesc,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                FilledTonalIconButton(
+                                    onClick = {
+                                        onStopClick()
+                                        (localContext as? ComponentActivity)?.finishAffinity()
+                                    },
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)
+                                    ),
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                        contentDescription = exitDesc,
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent
+                    )
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .size(400.dp)
+                        .alpha(0.05f),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+
+                if (isLandscape) {
+                    Column(modifier = Modifier.fillMaxSize().padding(5.dp)) {
+                        val landscapeStats = if (isRussian) {
+                            "Спидометр: %.2f км | Топливо: %.2f л | Скорость: %.0f км/ч"
+                        } else {
+                            "Speedometer: %.2f km | Fuel: %.2f L | Speed: %.0f km/h"
+                        }
+                        Text(
+                            text = String.format(Locale.US, landscapeStats,
+                                currentTotalKm, currentRemainingFuel, speed),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f).verticalScroll(scrollStateLeft),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy((0).dp)
+                                    ) {
+                                        fields.forEachIndexed { index, field ->
+                                            key(field.id) {
+                                                OutlinedTextField(
+                                                    value = field.value,
+                                                    onValueChange = { onFieldChange(index, it) },
+                                                    label = { Text(field.label, fontSize = 9.sp) },
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                                    modifier = Modifier.width(260.dp),
+                                                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
+                                                    readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km" || field.id == "current_speed_field",
+                                                    singleLine = true
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        Column(
-                            modifier = Modifier.weight(1f).verticalScroll(scrollStateRight),
-                            verticalArrangement = Arrangement.Top,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Button(
-                                onClick = onStartClick,
-                                modifier = Modifier.width(240.dp),
-                                enabled = !isTripStarted
-                            ) { Text(startLabel) }
-                            Button(
-                                onClick = onStopClick,
-                                modifier = Modifier.width(240.dp),
-                                enabled = isTripStarted
-                            ) { Text(stopLabel) }
+                            Column(
+                                modifier = Modifier.weight(1f).verticalScroll(scrollStateRight),
+                                verticalArrangement = Arrangement.Top,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = onStartClick,
+                                    modifier = Modifier.width(240.dp),
+                                    enabled = !isTripStarted
+                                ) { Text(startLabel) }
+                                Button(
+                                    onClick = onStopClick,
+                                    modifier = Modifier.width(240.dp),
+                                    enabled = isTripStarted
+                                ) { Text(stopLabel) }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
-                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.padding(start = 20.dp)
-                                ) {
-                                    MyCheckboxScreenCompact(isWinter, onWinterChange, winterLabel)
-                                    MyCheckboxScreenCompact(isSpring, onSpringChange, springLabel)
+                                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.padding(start = 20.dp)
+                                    ) {
+                                        MyCheckboxScreenCompact(isWinter, onWinterChange, winterLabel)
+                                        MyCheckboxScreenCompact(isSpring, onSpringChange, springLabel)
+                                    }
                                 }
+                                Spacer(modifier = Modifier.height(32.dp))
                             }
-
-                            Spacer(modifier = Modifier.height(32.dp))
                         }
                     }
-                }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(10.dp).verticalScroll(scrollStateLeft),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val portraitStats = if (isRussian) {
-                        "Спидометр: %.2f км\nТопливо: %.2f л | Скорость: %.0f км/ч\nМакс. скорость: %.0f км/ч"
-                    } else {
-                        "Speedometer: %.2f km\nFuel: %.2f L | Speed: %.0f km/h\nMax Speed: %.0f km/h"
-                    }
-                    Text(
-                        text = String.format(Locale.US, portraitStats,
-                            currentTotalKm, currentRemainingFuel, currentSpeed, currentMaxSpeed),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        textAlign = TextAlign.Center
-                    )
-                    fields.forEachIndexed { index, field ->
-                        key(field.id) {
-                            OutlinedTextField(
-                                value = field.value,
-                                onValueChange = { onFieldChange(index, it) },
-                                label = { Text(field.label) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                modifier = Modifier.fillMaxWidth(),
-                                readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km" || field.id == "current_speed_field"
-                            )
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(10.dp).verticalScroll(scrollStateLeft),
+                        verticalArrangement = Arrangement.spacedBy(0.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        val portraitStats = if (isRussian) {
+                            "Спидометр: %.2f км\nТопливо: %.2f л | Скорость: %.0f км/ч"
+                        } else {
+                            "Speedometer: %.2f km\nFuel: %.2f L | Speed: %.0f km/h"
                         }
-                    }
-                    Row {
-                        MyCheckboxScreen(isWinter, onWinterChange, winterLabel)
-                        MyCheckboxScreenSpring(isSpring, onSpringChange, springLabel)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = onStartClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isTripStarted
-                    ) { Text(startLabel) }
-                    Button(
-                        onClick = onStopClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = isTripStarted
-                    ) { Text(stopLabel) }
+                        Text(
+                            text = String.format(Locale.US, portraitStats,
+                                currentTotalKm, currentRemainingFuel, speed),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            textAlign = TextAlign.Center
+                        )
+                        fields.forEachIndexed { index, field ->
+                            key(field.id) {
+                                OutlinedTextField(
+                                    value = field.value,
+                                    onValueChange = { onFieldChange(index, it) },
+                                    label = { Text(field.label) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km" || field.id == "current_speed_field"
+                                )
+                            }
+                        }
+                        Row {
+                            MyCheckboxScreen(isWinter, onWinterChange, winterLabel)
+                            MyCheckboxScreenSpring(isSpring, onSpringChange, springLabel)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = onStartClick,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isTripStarted
+                        ) { Text(startLabel) }
+                        Button(
+                            onClick = onStopClick,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = isTripStarted
+                        ) { Text(stopLabel) }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(160.dp))
 
-                    Text(
-                        text = copyrightLabel,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 5.dp),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline,
-                        textAlign = TextAlign.Center
-                    )
+                        Text(
+                            text = copyrightLabel,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 5.dp),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
@@ -854,8 +1011,6 @@ private fun shareTripHistory(context: android.content.Context) {
 private fun shareCurrentLocation(context: android.content.Context) {
     val repository = SettingsRepository(context)
     val isRussian = repository.getIsRussian()
-    
-    // Получаем последние координаты из системы через FusedLocationProviderClient
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
     
     try {
@@ -882,34 +1037,6 @@ private fun shareCurrentLocation(context: android.content.Context) {
     }
 }
 
-private fun shareLogFile(context: android.content.Context) {
-    val logFile = AppLogger.getLogFile(context)
-    if (!logFile.exists()) {
-        Toast.makeText(context, "Log file not created yet", Toast.LENGTH_SHORT).show()
-        return
-    }
-
-    val uri = androidx.core.content.FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        logFile
-    )
-
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    context.startActivity(Intent.createChooser(intent, "Share logs via..."))
-}
-
-/**
- * Отображает строку с флажком (Checkbox) для выбора зимнего режима.
- * Данный режим предполагает корректировку расхода топлива (например, +10%).
- *
- * @param isChecked Текущее состояние флажка (выбрано или нет).
- * @param onCheckedChange Лямбда-выражение, вызываемое при изменении состояния флажка.
- */
 @Composable
 fun MyCheckboxScreen(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
     Row(
@@ -926,6 +1053,7 @@ fun MyCheckboxScreen(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, lab
         )
     }
 }
+
 @Composable
 fun MyCheckboxScreenSpring(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
     Row(
@@ -943,9 +1071,6 @@ fun MyCheckboxScreenSpring(isChecked: Boolean, onCheckedChange: (Boolean) -> Uni
     }
 }
 
-/**
- * Компактная версия чекбокса для альбомной ориентации.
- */
 @Composable
 fun MyCheckboxScreenCompact(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
     Row(
@@ -975,7 +1100,6 @@ fun PreviewMainLocationContentStarted() {
                 NumericField("trip_km", "Trip (km)", "5.0"),
                 NumericField("fuel", "Fuel (L)", "30.0"),
                 NumericField("fuelStandart", "Fuel Rate", "6.5"),
-                NumericField("max_speed", "Max Speed", "45.0"),
                 NumericField("current_speed_field", "Current Speed", "40.0")
             ),
             isWinter = false,
@@ -987,6 +1111,7 @@ fun PreviewMainLocationContentStarted() {
             onLanguageToggle = {},
             onFieldChange = { _, _ -> },
             onHistoryClick = {},
+            onInstructionClick = {},
             onStartClick = {},
             onStopClick = {},
         )
@@ -1014,6 +1139,7 @@ fun PreviewMainLocationContentStopped() {
             onLanguageToggle = {},
             onFieldChange = { _, _ -> },
             onHistoryClick = {},
+            onInstructionClick = {},
             onStartClick = {},
             onStopClick = {}
         )
@@ -1030,7 +1156,6 @@ fun PreviewMainLocationContentLandscape() {
                 NumericField("trip_km", "Trip (km)", "10.0"),
                 NumericField("fuel", "Fuel (L)", "25.0"),
                 NumericField("fuelStandart", "Fuel Rate", "8.2"),
-                NumericField("max_speed", "Max Speed", "65.0"),
                 NumericField("current_speed_field", "Current Speed", "60.0")
             ),
             isWinter = true,
@@ -1042,6 +1167,7 @@ fun PreviewMainLocationContentLandscape() {
             onLanguageToggle = {},
             onFieldChange = { _, _ -> },
             onHistoryClick = {},
+            onInstructionClick = {},
             onStartClick = {},
             onStopClick = {}
         )
@@ -1072,4 +1198,3 @@ fun PreviewMyCheckboxScreen() {
         MyCheckboxScreen(isChecked = true, onCheckedChange = {}, label = "Winter (+10%)")
     }
 }
-
