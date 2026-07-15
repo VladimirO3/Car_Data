@@ -14,6 +14,10 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.LocationManager
 import android.os.Bundle
 import android.provider.Settings
@@ -26,6 +30,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -80,6 +86,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -102,22 +109,10 @@ import com.rosseti.cardata.model.NumericField
 import com.rosseti.cardata.ui.theme.CarDataTheme
 import java.util.Locale
 
-/**
- * Основная точка входа в приложение, ответственная за пользовательский интерфейс и
- * управление жизненным циклом отслеживания поездок.
- *
- * Эта деятельность обрабатывает:
- * - Запросы на разрешение выполнения для служб местоположения (точные, основные и фоновые).
- * - Инициализация [MainViewModel] с его репозиторием посредством настраиваемого [ViewModelProvider.Factory].
- * - Наблюдение за [android.content.SharedPreferences], чтобы инициировать обновления пользовательского интерфейса при обновлении данных о расстоянии фоновым сервисом.
- * - Запуск и остановка [LocationService] для фонового GPS-отслеживания.
- * - Рендеринг пользовательского интерфейса на основе Compose для ввода данных о поездке, мониторинга состояния и выбора зимнего режима.
- *
- * @see LocationService
- * @see MainViewModel
- * @author Osetrov V.V.
- */
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), SensorEventListener {
+
+    private lateinit var sensorManager: SensorManager
+    private var rotationSensor: Sensor? = null
 
     private val viewModel: MainViewModel by viewModels {
         object : ViewModelProvider.Factory {
@@ -128,23 +123,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Слушатель для изменений в [SharedPreferences], которые инициируют обновление интерфейса пользователя.
-     * Следит за пройденным расстоянием и максимальной скоростью.
-     */
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "total_distance" || key == "last_max_speed" || key == "current_speed") {
             runOnUiThread { viewModel.refreshDistance() }
         }
     }
 
-    /**
-     * Обработчик результата запроса разрешений на доступ к точному и примерному местоположению.
-     *
-     * Если разрешение [Manifest.permission.ACCESS_FINE_LOCATION] предоставлено,
-     * инициируется проверка разрешений на фоновое использование местоположения.
-     * В противном случае пользователю выводится уведомление о необходимости разрешений.
-     */
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -156,14 +140,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Обработчик результата запроса разрешения на доступ к местоположению в фоновом режиме.
-     *
-     * Начиная с Android 10 (API 29), для отслеживания координат, когда приложение свернуто,
-     * требуется отдельное подтверждение. Независимо от выбора пользователя (предоставлено
-     * разрешение или нет), предпринимается попытка запуска [LocationService], при этом
-     * в случае отказа выводится соответствующее уведомление.
-     */
     private val backgroundPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -175,23 +151,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Обработчик результата включения GPS через системный диалог.
-     */
     private val gpsSettingLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
-            // Пользователь включил GPS, продолжаем стандартную проверку разрешений
             checkLocationPermissions()
         } else {
             makeText(this, "GPS must be enabled for the app to function", Toast.LENGTH_LONG).show()
         }
     }
 
-    /**
-     * Слушатель для отслеживания изменений состояния GPS.
-     */
     private val gpsStatusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == LocationManager.PROVIDERS_CHANGED_ACTION) {
@@ -203,17 +172,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Вызывается при создании активности. Инициализирует настройки приложения,
-     * регистрирует слушателя изменений в [android.content.SharedPreferences] для обновления данных о расстоянии
-     * и устанавливает пользовательский интерфейс с помощью Jetpack Compose.
-     *
-     * @param savedInstanceState Если активность воссоздается из предыдущего сохраненного состояния, это этот Bundle.
-     */
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+
         val prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE)
         prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
 
@@ -233,13 +198,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Обрабатывает нажатие кнопки «Старт» для начала отслеживания поездки.
-     *
-     * Метод использует Google Play Services для проверки настроек местоположения.
-     * Если GPS выключен, пользователю будет показан системный диалог для его включения.
-     * Если GPS включен, переходит к проверке разрешений.
-     */
     private fun onStartClicked() {
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000).build()
         val builder = LocationSettingsRequest.Builder().addLocationRequest(locationRequest)
@@ -247,7 +205,6 @@ class MainActivity : ComponentActivity() {
         val task = client.checkLocationSettings(builder.build())
 
         task.addOnSuccessListener {
-            // Настройки местоположения удовлетворяют требованиям, проверяем разрешения
             checkLocationPermissions()
         }
 
@@ -260,7 +217,6 @@ class MainActivity : ComponentActivity() {
                     Log.e("MainActivity", "Error launching GPS setting dialog", sendEx)
                 }
             } else {
-                // Если системный диалог недоступен, используем старый способ с переходом в настройки
                 if (!isLocationEnabled()) {
                     makeText(this, "Please enable GPS in settings", Toast.LENGTH_LONG).show()
                     startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
@@ -269,9 +225,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Выполняет последовательную проверку разрешений на доступ к местоположению.
-     */
     private fun checkLocationPermissions() {
         val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -283,7 +236,6 @@ class MainActivity : ComponentActivity() {
         }
 
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            // На Android 13+ также проверяем уведомления, но не блокируем запуск без них
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissionLauncher.launch(permissions.toTypedArray())
@@ -301,15 +253,6 @@ class MainActivity : ComponentActivity() {
                 locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 
-    /**
-     * Проверяет наличие разрешения на доступ к местоположению в фоновом режиме.
-     *
-     * Начиная с Android 10 (API 29), для получения координат в фоновом режиме требуется
-     * явное разрешение [Manifest.permission.ACCESS_BACKGROUND_LOCATION].
-     * - Если устройство работает на версии ниже Android Q, сразу запускает службу.
-     * - Если разрешение уже предоставлено, инициирует запуск [startTripService].
-     * - В противном случае запускает системный диалог запроса через [backgroundPermissionLauncher].
-     */
     private fun checkBackgroundPermission() {
         if (checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             startTripService()
@@ -318,47 +261,46 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Запускает процесс отслеживания поездки.
-     *
-     * Метод выполняет следующие действия:
-     * 1. Уведомляет [MainViewModel] о начале поездки для инициализации начальных данных.
-     * 2. Создает и запускает [LocationService] как Foreground Service для обеспечения
-     * непрерывного получения координат местоположения в фоновом режиме.
-     */
     private fun startTripService() {
         viewModel.onStartTrip()
         val intent = Intent(this, LocationService::class.java)
         startForegroundService(intent)
     }
 
-    /**
-     * Обрабатывает нажатие кнопки «Стоп» для завершения отслеживания поездки.
-     *
-     * Данный метод выполняет следующие действия:
-     * 1. Вызывает [MainViewModel.onStopTrip] для сохранения финальных данных и завершения логики поездки.
-     * 2. Останавливает фоновую службу [LocationService], прекращая получение обновлений местоположения.
-     */
     private fun onStopClicked() {
         viewModel.onStopTrip()
         stopService(Intent(this, LocationService::class.java))
     }
 
-    /**
-     * Вызывается, когда активность переходит в состояние взаимодействия с пользователем.
-     *
-     * Переопределяет стандартное поведение для принудительного обновления данных полей
-     * через [viewModel], обеспечивая актуальность отображаемой информации (пробега и топлива)
-     * при возврате пользователя в приложение.
-     */
     override fun onResume() {
         super.onResume()
+        rotationSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        }
         viewModel.loadFields()
         if (!isLocationEnabled() && viewModel.isTripStarted.value) {
             onStopClicked()
             showGpsRequiredDialog()
         }
     }
+
+    override fun onPause() {
+        super.onPause()
+        sensorManager.unregisterListener(this)
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_ROTATION_VECTOR) {
+            val rotationMatrix = FloatArray(9)
+            SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+            val orientationValues = FloatArray(3)
+            SensorManager.getOrientation(rotationMatrix, orientationValues)
+            val azimuth = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
+            viewModel.compassHeading.value = -azimuth
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun showGpsRequiredDialog() {
         AlertDialog.Builder(this)
@@ -375,16 +317,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * Перечисление экранов приложения.
- */
 enum class Screen {
     MAIN, HISTORY, INSTRUCTION
 }
 
-/**
- * Многоуровневый компоновочный файл, который служит основным экраном для отслеживания местоположения и ввода данных.
- */
 @Composable
 fun MainLocationScreen(
     viewModel: MainViewModel, 
@@ -416,6 +352,7 @@ fun MainLocationScreen(
             isWinter = viewModel.isWinter.value,
             isTripStarted = viewModel.isTripStarted.value,
             isRussian = viewModel.isRussian.value,
+            compassHeading = viewModel.compassHeading.value,
             onSpringChange = { viewModel.toggleSpring(it) },
             onWinterChange = { viewModel.toggleWinter(it) },
             onLanguageToggle = { viewModel.toggleLanguage() },
@@ -439,9 +376,6 @@ fun MainLocationScreen(
     }
 }
 
-/**
- * Экран истории поездок.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
@@ -671,6 +605,7 @@ fun MainLocationContent(
     isSpring: Boolean,
     isTripStarted: Boolean,
     isRussian: Boolean,
+    compassHeading: Float,
     onWinterChange: (Boolean) -> Unit,
     onSpringChange: (Boolean) -> Unit,
     onLanguageToggle: () -> Unit,
@@ -684,7 +619,7 @@ fun MainLocationContent(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val currentTotalKm = fields.getOrNull(0)?.value?.toFloatOrNull() ?: 0f
     val currentRemainingFuel = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
-    val speed = fields.getOrNull(5)?.value?.toFloatOrNull() ?: 0f
+    val speed = fields.getOrNull(4)?.value?.toFloatOrNull() ?: 0f
 
     val localContext = LocalContext.current
     val scrollStateLeft = rememberScrollState()
@@ -851,9 +786,9 @@ fun MainLocationContent(
                 if (isLandscape) {
                     Column(modifier = Modifier.fillMaxSize().padding(5.dp)) {
                         val landscapeStats = if (isRussian) {
-                            "Спидометр: %.2f км | Топливо: %.2f л | Скорость: %.0f км/ч"
+                            "Одометр: %.2f км | Топливо: %.2f л | Скорость: %.0f км/ч"
                         } else {
-                            "Speedometer: %.2f km | Fuel: %.2f L | Speed: %.0f km/h"
+                            "Odometer: %.2f km | Fuel: %.2f L | Speed: %.0f km/h"
                         }
                         Text(
                             text = String.format(Locale.US, landscapeStats,
@@ -867,10 +802,11 @@ fun MainLocationContent(
 
                         Row(
                             modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(
-                                modifier = Modifier.weight(1f).verticalScroll(scrollStateLeft),
+                                modifier = Modifier.weight(1.2f).verticalScroll(scrollStateLeft),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
@@ -885,7 +821,7 @@ fun MainLocationContent(
                                                     onValueChange = { onFieldChange(index, it) },
                                                     label = { Text(field.label, fontSize = 9.sp) },
                                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                                    modifier = Modifier.width(260.dp),
+                                                    modifier = Modifier.width(220.dp),
                                                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
                                                     readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km" || field.id == "current_speed_field",
                                                     singleLine = true
@@ -895,36 +831,44 @@ fun MainLocationContent(
                                     }
                                 }
                             }
+
                             Column(
-                                modifier = Modifier.weight(1f).verticalScroll(scrollStateRight),
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                CompassView(compassHeading, isRussian)
+                            }
+
+                            Column(
+                                modifier = Modifier.weight(1.2f).verticalScroll(scrollStateRight),
                                 verticalArrangement = Arrangement.Top,
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Button(
                                     onClick = onStartClick,
-                                    modifier = Modifier.width(240.dp),
+                                    modifier = Modifier.width(220.dp),
                                     enabled = !isTripStarted
                                 ) { Text(startLabel) }
                                 Button(
                                     onClick = onStopClick,
-                                    modifier = Modifier.width(240.dp),
+                                    modifier = Modifier.width(220.dp),
                                     enabled = isTripStarted
                                 ) { Text(stopLabel) }
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(5.dp))
 
                                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.padding(start = 20.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                                     ) {
                                         MyCheckboxScreenCompact(isWinter, onWinterChange, winterLabel)
                                         MyCheckboxScreenCompact(isSpring, onSpringChange, springLabel)
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(32.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
                             }
                         }
                     }
@@ -935,9 +879,9 @@ fun MainLocationContent(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         val portraitStats = if (isRussian) {
-                            "Спидометр: %.2f км\nТопливо: %.2f л | Скорость: %.0f км/ч"
+                            "Одометр: %.2f км\nТопливо: %.2f л | Скорость: %.0f км/ч"
                         } else {
-                            "Speedometer: %.2f km\nFuel: %.2f L | Speed: %.0f km/h"
+                            "Odometer: %.2f km\nFuel: %.2f L | Speed: %.0f km/h"
                         }
                         Text(
                             text = String.format(Locale.US, portraitStats,
@@ -963,7 +907,7 @@ fun MainLocationContent(
                             MyCheckboxScreen(isWinter, onWinterChange, winterLabel)
                             MyCheckboxScreenSpring(isSpring, onSpringChange, springLabel)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(0.dp))
                         Button(
                             onClick = onStartClick,
                             modifier = Modifier.fillMaxWidth(),
@@ -975,7 +919,10 @@ fun MainLocationContent(
                             enabled = isTripStarted
                         ) { Text(stopLabel) }
 
-                        Spacer(modifier = Modifier.height(160.dp))
+                        Spacer(modifier = Modifier.height(0.dp))
+                        CompassView(compassHeading, isRussian)
+
+                        Spacer(modifier = Modifier.height(0.dp))
 
                         Text(
                             text = copyrightLabel,
@@ -988,6 +935,101 @@ fun MainLocationContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun CompassView(heading: Float, isRussian: Boolean) {
+    val animatedHeading by animateFloatAsState(targetValue = heading)
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    
+    val nLabel = if (isRussian) "С" else "N"
+    val sLabel = if (isRussian) "Ю" else "S"
+    val eLabel = if (isRussian) "В" else "E"
+    val wLabel = if (isRussian) "З" else "W"
+    
+    Box(
+        modifier = Modifier.size(160.dp).padding(8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = center
+            val radius = size.minDimension / 2
+            
+            // Outer ring
+            drawCircle(
+                color = onSurface.copy(alpha = 0.1f),
+                radius = radius,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+            )
+            
+            // Degree marks
+            for (i in 0 until 12) {
+                rotate(i * 30f) {
+                    drawLine(
+                        color = onSurface.copy(alpha = 0.2f),
+                        start = androidx.compose.ui.geometry.Offset(center.x, 0f),
+                        end = androidx.compose.ui.geometry.Offset(center.x, 10f),
+                        strokeWidth = 2f
+                    )
+                }
+            }
+            
+            rotate(degrees = animatedHeading) {
+                // North indicator
+                drawPath(
+                    path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(center.x, center.y - radius + 25f)
+                        lineTo(center.x - 12f, center.y)
+                        lineTo(center.x + 12f, center.y)
+                        close()
+                    },
+                    color = Color.Red
+                )
+                // South indicator
+                drawPath(
+                    path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(center.x, center.y + radius - 25f)
+                        lineTo(center.x - 12f, center.y)
+                        lineTo(center.x + 12f, center.y)
+                        close()
+                    },
+                    color = Color.Blue
+                )
+                // Center pin
+                drawCircle(color = onSurface, radius = 4f)
+            }
+        }
+        
+        // Cardinal Labels
+        Text(
+            text = nLabel,
+            modifier = Modifier.align(Alignment.TopCenter),
+            color = Color.Red,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+        Text(
+            text = sLabel,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            color = onSurface.copy(alpha = 0.6f),
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+        Text(
+            text = eLabel,
+            modifier = Modifier.align(Alignment.CenterEnd),
+            color = onSurface.copy(alpha = 0.6f),
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+        Text(
+            text = wLabel,
+            modifier = Modifier.align(Alignment.CenterStart),
+            color = onSurface.copy(alpha = 0.6f),
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
     }
 }
 
@@ -1096,7 +1138,7 @@ fun PreviewMainLocationContentStarted() {
     CarDataTheme {
         MainLocationContent(
             fields = listOf(
-                NumericField("km", "Speedometer (km)", "10.0"),
+                NumericField("km", "Одометр (км)", "10.0"),
                 NumericField("trip_km", "Trip (km)", "5.0"),
                 NumericField("fuel", "Fuel (L)", "30.0"),
                 NumericField("fuelStandart", "Fuel Rate", "6.5"),
@@ -1106,6 +1148,7 @@ fun PreviewMainLocationContentStarted() {
             isSpring = false,
             isTripStarted = true,
             isRussian = true,
+            compassHeading = 0f,
             onSpringChange = {},
             onWinterChange = {},
             onLanguageToggle = {},
@@ -1124,7 +1167,7 @@ fun PreviewMainLocationContentStopped() {
     CarDataTheme {
         MainLocationContent(
             fields = listOf(
-                NumericField("km", "Speedometer (km)", "0.0"),
+                NumericField("km", "Одометр (км)", "0.0"),
                 NumericField("fuel", "Fuel (L)", "45.0"),
                 NumericField("std", "Fuel Rate (L/100)", "7.0"),
                 NumericField("trip_km", "Trip (km)", "0.0"),
@@ -1134,6 +1177,7 @@ fun PreviewMainLocationContentStopped() {
             isSpring = false,
             isTripStarted = false,
             isRussian = false,
+            compassHeading = 0f,
             onSpringChange = {},
             onWinterChange = {},
             onLanguageToggle = {},
@@ -1152,7 +1196,7 @@ fun PreviewMainLocationContentLandscape() {
     CarDataTheme {
         MainLocationContent(
             fields = listOf(
-                NumericField("km", "Speedometer (km)", "120.5"),
+                NumericField("km", "Одометр (км)", "120.5"),
                 NumericField("trip_km", "Trip (km)", "10.0"),
                 NumericField("fuel", "Fuel (L)", "25.0"),
                 NumericField("fuelStandart", "Fuel Rate", "8.2"),
@@ -1162,6 +1206,7 @@ fun PreviewMainLocationContentLandscape() {
             isSpring = false,
             isTripStarted = true,
             isRussian = true,
+            compassHeading = 45f,
             onSpringChange = {},
             onWinterChange = {},
             onLanguageToggle = {},

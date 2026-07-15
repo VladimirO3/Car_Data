@@ -73,6 +73,11 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     var tripHistory = mutableStateListOf<String>()
         private set
 
+    /**
+     * Текущее направление компаса (азимут).
+     */
+    var compassHeading = mutableStateOf(0f)
+
     private var baseKm: Float = 0f
     private var baseFuel: Float = 0f
 
@@ -141,9 +146,9 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val currentSpeedStr = formatInteger(currentSpeed)
 
         val labels = if (isRussian.value) {
-            listOf("Спидометр (км)", "Дистанция (км)", "Остаток топлива", "Норма расхода", "Текущая скорость (км/ч)")
+            listOf("Одометр (км)", "Дистанция (км)", "Остаток топлива", "Норма расхода", "Текущая скорость (км/ч)")
         } else {
-            listOf("Speedometer (km)", "Trip Distance (km)", "Remaining Fuel", "Fuel Consumption Rate", "Current Speed (km/h)")
+            listOf("Odometer (km)", "Trip Distance (km)", "Remaining Fuel", "Fuel Consumption Rate", "Current Speed (km/h)")
         }
 
         if (fields.isEmpty()) {
