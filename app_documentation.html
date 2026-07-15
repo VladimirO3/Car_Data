@@ -27,60 +27,55 @@
     <div class="class-box">
         <h2>MainActivity</h2>
         <span class="tag">UI Layer</span>
-        <p>Центральная Activity приложения. Управляет жизненным циклом UI (Jetpack Compose), запрашивает разрешения и контролирует запуск/остановку служб.</p>
+        <p>Центральная Activity приложения. Управляет жизненным циклом UI (Jetpack Compose), навигацией между экранами и интеграцией с аппаратными датчиками.</p>
         <table>
-            <tr><th>Метод</th><th>Описание</th></tr>
+            <tr><th>Метод / Функционал</th><th>Описание</th></tr>
             <tr><td class="method-name">onCreate()</td><td>Инициализирует UI, регистрирует слушателей настроек и проверяет состояние GPS.</td></tr>
+            <tr><td class="method-name">Compass Integration</td><td>Использует <b>Sensor.TYPE_ROTATION_VECTOR</b> для получения точного азимута и обновления UI компаса.</td></tr>
+            <tr><td class="method-name">Navigation</td><td>Обрабатывает переключение между главным экраном, историей поездок и экраном инструкций.</td></tr>
             <tr><td class="method-name">onStartClicked()</td><td>Проверяет GPS и разрешения (включая фоновые), затем инициирует запуск рейса.</td></tr>
-            <tr><td class="method-name">checkLocationPermissions()</td><td>Запрашивает права на геолокацию и уведомления (Android 13+).</td></tr>
-            <tr><td class="method-name">startTripService()</td><td>Запускает Foreground Service для фонового отслеживания.</td></tr>
-            <tr><td class="method-name">onStopClicked()</td><td>Останавливает службу и сохраняет финальные данные через ViewModel.</td></tr>
+            <tr><td class="method-name">startTripService()</td><td>Запускает Foreground Service для фонового отслеживания с типом "location".</td></tr>
         </table>
-        <p><i>Примечание: В манифест добавлены разрешения Bluetooth для корректной работы системного сбора статистики энергопотребления на Android 15+. Интерфейс обновлен с использованием Material 3 Tonal Buttons.</i></p>
+        <p><i>Примечание: Поддерживается динамическая смена языка (RU/EN) и адаптация под Android 15+. Поле «Спидометр» переименовано в «Одометр» для точности.</i></p>
     </div>
 
     <div class="class-box">
         <h2>MainViewModel</h2>
         <span class="tag">Business Logic Layer</span>
-        <p>Обрабатывает все вычисления, хранит состояние UI и синхронизирует данные между экраном и репозиторием. Покрыта 13 модульными тестами.</p>
+        <p>Обрабатывает все вычисления, хранит состояние UI и синхронизирует данные между экраном и репозиторием. Поддерживает реактивное обновление при изменении дистанции.</p>
         <table>
             <tr><th>Метод</th><th>Описание</th></tr>
-            <tr><td class="method-name">loadFields()</td><td>Загружает сохраненные значения одометра и топлива из памяти при старте.</td></tr>
-            <tr><td class="method-name">calculateRemainingFuel()</td><td>Рассчитывает остаток топлива с учетом пройденного пути и сезонных коэффициентов (+10%).</td></tr>
-            <tr><td class="method-name">calculateAverageSpeed()</td><td>Вычисляет среднюю скорость на основе времени старта и пройденного расстояния.</td></tr>
-            <tr><td class="method-name">onFieldChange()</td><td>Валидирует ввод пользователя (десятичные числа) и сохраняет их в репозиторий.</td></tr>
-            <tr><td class="method-name">onStartTrip()</td><td>Сбрасывает текущий пробег и фиксирует время начала рейса.</td></tr>
-            <tr><td class="method-name">refreshDistance()</td><td>Обновляет UI-поля на основе актуальных данных от GPS-службы.</td></tr>
+            <tr><td class="method-name">getConsumptionFactor()</td><td>Рассчитывает суммарный коэффициент расхода: <b>аддитивно</b> прибавляет по +10% за "Зиму" и "Весну" (макс. +20%).</td></tr>
+            <tr><td class="method-name">toggleLanguage()</td><td>Переключает язык интерфейса и обновляет метки всех полей (NumericField).</td></tr>
+            <tr><td class="method-name">onStartTrip()</td><td>Сбрасывает текущий пробег, фиксирует время старта и блокирует поля ввода для защиты данных.</td></tr>
+            <tr><td class="method-name">onStopTrip()</td><td>Формирует запись о поездке (TripRecord), сохраняет её в историю и разблокирует поля.</td></tr>
+            <tr><td class="method-name">refreshDistance()</td><td>Обновляет UI-поля (спидометр, остаток топлива, средняя скорость) на основе актуальных данных от GPS.</td></tr>
         </table>
+    </div>
+
+    <div class="class-box">
+        <h2>Instruction & History Screens</h2>
+        <span class="tag">UI Layer</span>
+        <p>Дополнительные экраны для повышения удобства пользователя.</p>
+        <ul>
+            <li><b>HistoryScreen</b>: Отображает список завершенных рейсов в обратном хронологическом порядке. Позволяет очищать историю и делиться ею.</li>
+            <li><b>InstructionScreen</b>: Интерактивное руководство по подготовке к рейсу, управлению и интерпретации данных.</li>
+        </ul>
     </div>
 
     <div class="class-box">
         <h2>LocationService</h2>
         <span class="tag">Background Layer</span>
-        <p>Foreground Service, который работает в фоне. Получает данные от GPS-провайдера и обновляет общее расстояние поездки.</p>
+        <p>Foreground Service, обеспечивающий непрерывность сбора данных. Работает в отдельном процессе от UI.</p>
         <table>
             <tr><th>Метод</th><th>Описание</th></tr>
-            <tr><td class="method-name">onLocationResult()</td><td>Обрабатывает новые координаты, фильтрует GPS-помехи и суммирует дистанцию.</td></tr>
-            <tr><td class="method-name">startLocationUpdates()</td><td>Настраивает параметры запроса GPS (интервал, точность) и запускает прослушивание.</td></tr>
-            <tr><td class="method-name">onStartCommand()</td><td>Создает уведомление в шторке и переводит службу в режим Foreground.</td></tr>
-        </table>
-    </div>
-
-    <div class="class-box">
-        <h2>SettingsRepository</h2>
-        <span class="tag">Data Layer</span>
-        <p>Обеспечивает постоянное хранение данных приложения с использованием SharedPreferences.</p>
-        <table>
-            <tr><th>Метод</th><th>Описание</th></tr>
-            <tr><td class="method-name">saveTotalDistance()</td><td>Записывает накопленный пробег текущей поездки.</td></tr>
-            <tr><td class="method-name">saveFieldValue()</td><td>Сохраняет значения конкретных полей (спидометр, остаток в баке).</td></tr>
-            <tr><td class="method-name">getStartTime()</td><td>Возвращает метку времени начала текущего рейса.</td></tr>
-            <tr><td class="method-name">saveCurrentSpeed()</td><td>Кэширует последнюю мгновенную скорость для UI.</td></tr>
+            <tr><td class="method-name">updateNotification()</td><td>Динамически обновляет уведомление в шторке: показывает текущую скорость, пройденный путь и статус рейса.</td></tr>
+            <tr><td class="method-name">onLocationResult()</td><td>Фильтрует GPS-шумы (точность < 20м) и суммирует дистанцию только при перемещении > 3м.</td></tr>
         </table>
     </div>
 
     <footer>
-        <p>TrackLit Documentation v1.0.1329715 &copy; 2026</p>
+        <p>TrackLit Documentation v1.1.2026 &copy; Osetrov V.V.</p>
     </footer>
 
 </body>

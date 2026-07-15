@@ -53,7 +53,7 @@ class MainViewModelTest {
         // Re-init to trigger loading
         viewModel = MainViewModel(repository)
         
-        assertEquals("Speedometer (km)", viewModel.fields[0].label)
+        assertEquals("Odometer (km)", viewModel.fields[0].label)
         assertEquals("100.00", viewModel.fields[0].value)
         
         assertEquals("Trip Distance (km)", viewModel.fields[1].label)
@@ -75,7 +75,7 @@ class MainViewModelTest {
         
         viewModel = MainViewModel(repository)
         
-        assertEquals("Спидометр (км)", viewModel.fields[0].label)
+        assertEquals("Одометр (км)", viewModel.fields[0].label)
         assertEquals("Дистанция (км)", viewModel.fields[1].label)
         assertEquals("Остаток топлива", viewModel.fields[2].label)
         assertEquals("Норма расхода", viewModel.fields[3].label)
