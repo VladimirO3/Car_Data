@@ -72,9 +72,10 @@
             <h2>1. Project Overview</h2>
             <p><strong>TrackLit</strong> is a professional-grade GPS trip tracker for Android. It automates mileage tracking and calculates real-time fuel consumption with seasonal adjustments. The app is optimized for high accuracy and reliable background operation.</p>
             <ul class="feature-list">
-                <li>High-sensitivity GPS tracking (2-meter threshold for drift filtering).</li>
+                <li>High-sensitivity GPS tracking (3-meter threshold for drift filtering).</li>
                 <li>Dynamic fuel calculation with additive seasonal factors (+10% Winter, +10% Spring).</li>
-                <li>Background operation via Foreground Service with dynamic notifications (speedometer, trip, speed).</li>
+                <li>Digital Compass with <b>Return Azimuth</b> (back course) calculation and degree scale.</li>
+                <li>Background operation via Foreground Service with rich notifications (Odometer, trip, speed, <b>compass heading</b>).</li>
                 <li>Instant coordinate sharing feature (Google Maps link).</li>
                 <li>System-level compatibility: Bluetooth permissions for power stats polling on Android 15+.</li>
                 <li>Modernized UI: Material 3 Tonal Icon Buttons and grouped action controls.</li>
@@ -134,8 +135,9 @@
             <h2>6. LocationService</h2>
             <p>Background component ensuring data continuity.</p>
             <table class="method-table">
-                <tr><td>updateNotification()</td><td>Updates the "live" notification: Speedometer + Trip Distance + Current Speed.</td></tr>
-                <tr><td>onLocationResult()</td><td>Filters noise (< 2m) and calculates odometer in real-time.</td></tr>
+                <tr><td>updateNotification()</td><td>Updates the notification: Odometer + Trip + Speed + Heading (Compass).</td></tr>
+                <tr><td>onLocationResult()</td><td>Filters noise (< 3m) and calculates odometer in real-time.</td></tr>
+                <tr><td>onSensorChanged()</td><td>Reads rotation sensor to display heading in the notification drawer.</td></tr>
                 <tr><td>startForegroundServiceSafe()</td><td>Starts the service complying with Android 14 requirements (location type).</td></tr>
             </table>
         </section>

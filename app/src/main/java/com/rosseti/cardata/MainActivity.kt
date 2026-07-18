@@ -297,7 +297,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             val orientationValues = FloatArray(3)
             SensorManager.getOrientation(rotationMatrix, orientationValues)
             val azimuth = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
-            viewModel.compassHeading.value = -azimuth
+            if (!azimuth.isNaN()) {
+                viewModel.compassHeading.value = -azimuth
+            }
         }
     }
 
@@ -558,6 +560,13 @@ fun InstructionScreen(
                     text = if (isRussian) 
                         "Используйте кнопку с иконкой локации, чтобы отправить свои точные координаты через мессенджеры." 
                         else "Use the location icon button to share your precise coordinates via messaging apps."
+                )
+                InstructionItem(
+                    number = "7",
+                    title = if (isRussian) "Использование компаса" else "Compass Usage",
+                    text = if (isRussian)
+                        "Темно-синяя стрелка указывает на Север, красная — на Юг. Зеленая метка показывает обратный курс для возврата."
+                        else "Dark blue needle points North, red points South. The green mark shows the return azimuth."
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -946,10 +955,14 @@ fun CompassView(heading: Float, isRussian: Boolean) {
     val animatedHeading by animateFloatAsState(targetValue = heading)
     val onSurface = MaterialTheme.colorScheme.onSurface
     
+    val displayDegrees = ((heading % 360 + 360) % 360).toInt()
+    val returnDegrees = (displayDegrees + 180) % 360
+    
     val nLabel = if (isRussian) "С" else "N"
     val sLabel = if (isRussian) "Ю" else "S"
     val eLabel = if (isRussian) "В" else "E"
     val wLabel = if (isRussian) "З" else "W"
+    val returnLabel = if (isRussian) "Возврат" else "Return"
     
     Box(
         modifier = Modifier.size(160.dp).padding(8.dp),
@@ -966,20 +979,26 @@ fun CompassView(heading: Float, isRussian: Boolean) {
                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
             )
             
-            // Degree marks
-            for (i in 0 until 12) {
-                rotate(i * 30f) {
+            // Degree marks - every 10 degrees
+            for (i in 0 until 36) {
+                val isMajor = i % 9 == 0 // 0, 90, 180, 270
+                val isMedium = i % 3 == 0 && !isMajor // 30, 60, 120...
+                
+                val tickLength = if (isMajor) 15f else if (isMedium) 10f else 6f
+                val alpha = if (isMajor) 0.6f else if (isMedium) 0.4f else 0.2f
+                
+                rotate(i * 10f) {
                     drawLine(
-                        color = onSurface.copy(alpha = 0.2f),
+                        color = onSurface.copy(alpha = alpha),
                         start = androidx.compose.ui.geometry.Offset(center.x, 0f),
-                        end = androidx.compose.ui.geometry.Offset(center.x, 10f),
-                        strokeWidth = 2f
+                        end = androidx.compose.ui.geometry.Offset(center.x, tickLength),
+                        strokeWidth = if (isMajor) 2.5f else 1.5f
                     )
                 }
             }
             
             rotate(degrees = animatedHeading) {
-                // North indicator
+                // North indicator (Dark Blue)
                 drawPath(
                     path = androidx.compose.ui.graphics.Path().apply {
                         moveTo(center.x, center.y - radius + 25f)
@@ -987,9 +1006,9 @@ fun CompassView(heading: Float, isRussian: Boolean) {
                         lineTo(center.x + 12f, center.y)
                         close()
                     },
-                    color = Color.Red
+                    color = Color(0xFF00008B)
                 )
-                // South indicator
+                // South indicator (Red)
                 drawPath(
                     path = androidx.compose.ui.graphics.Path().apply {
                         moveTo(center.x, center.y + radius - 25f)
@@ -997,8 +1016,22 @@ fun CompassView(heading: Float, isRussian: Boolean) {
                         lineTo(center.x + 12f, center.y)
                         close()
                     },
-                    color = Color.Blue
+                    color = Color.Red
                 )
+                
+                // Return Azimuth Indicator (Green dashed or semi-transparent)
+                rotate(degrees = 180f) {
+                    drawPath(
+                        path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(center.x, center.y - radius + 40f)
+                            lineTo(center.x - 8f, center.y - radius + 60f)
+                            lineTo(center.x + 8f, center.y - radius + 60f)
+                            close()
+                        },
+                        color = Color(0xFF4CAF50).copy(alpha = 0.7f)
+                    )
+                }
+
                 // Center pin
                 drawCircle(color = onSurface, radius = 4f)
             }
@@ -1008,14 +1041,14 @@ fun CompassView(heading: Float, isRussian: Boolean) {
         Text(
             text = nLabel,
             modifier = Modifier.align(Alignment.TopCenter),
-            color = Color.Red,
+            color = Color(0xFF00008B),
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp
         )
         Text(
             text = sLabel,
             modifier = Modifier.align(Alignment.BottomCenter),
-            color = onSurface.copy(alpha = 0.6f),
+            color = Color.Red,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp
         )
@@ -1033,6 +1066,25 @@ fun CompassView(heading: Float, isRussian: Boolean) {
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp
         )
+
+        // Numeric degree in the center
+        Column(
+            modifier = Modifier.align(Alignment.Center).padding(top = 45.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "$displayDegrees°",
+                fontSize = 10.sp,
+                color = onSurface.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "$returnLabel: $returnDegrees°",
+                fontSize = 8.sp,
+                color = Color(0xFF2E7D32),
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 

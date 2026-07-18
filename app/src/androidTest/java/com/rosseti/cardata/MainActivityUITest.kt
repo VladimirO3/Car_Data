@@ -115,4 +115,10 @@ class MainActivityUITest {
         composeTestRule.onNodeWithContentDescription("Trip History").assertExists()
         composeTestRule.onNodeWithContentDescription("Instructions").assertExists()
     }
+
+    @Test
+    fun testCompassDegreeDisplay() {
+        // Проверка, что на компасе отображаются градусы (символ °)
+        composeTestRule.onNodeWithText("0°", substring = true).assertExists()
+    }
 }

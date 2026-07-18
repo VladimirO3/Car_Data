@@ -76,6 +76,14 @@ android {
         viewBinding = true
         resValues = true
     }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+        dex {
+            useLegacyPackaging = false
+        }
+    }
     dependenciesInfo {
         includeInApk = true
         includeInBundle = true

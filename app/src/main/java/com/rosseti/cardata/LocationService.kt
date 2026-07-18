@@ -7,8 +7,13 @@ import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.IBinder
 import android.os.Looper
@@ -22,11 +27,15 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.rosseti.cardata.data.SettingsRepository
 
-class LocationService : Service() {
+class LocationService : Service(), SensorEventListener {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private lateinit var repository: SettingsRepository
     private var lastLocation: Location? = null
+    
+    private lateinit var sensorManager: SensorManager
+    private var rotationSensor: Sensor? = null
+    private var currentHeading: Float = 0f
 
     companion object {
         private const val NOTIFICATION_ID = 1
@@ -38,6 +47,13 @@ class LocationService : Service() {
         AppLogger.d(this, "Service onCreate - Инициализация службы")
         
         repository = SettingsRepository(applicationContext)
+        
+        // Инициализация датчиков для компаса в уведомлении
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        rotationSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
         
         // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
         startForegroundServiceSafe()
@@ -59,7 +75,7 @@ class LocationService : Service() {
                     } else {
                         val distance = last.distanceTo(location)
                         
-                        // Рассчитываем скорость: приоритет датчику, иначе считаем по времени и расстоянию
+                        // Рассчитываем скорость
                         val rawSpeedMps = if (location.hasSpeed()) {
                             location.speed
                         } else {
@@ -67,13 +83,9 @@ class LocationService : Service() {
                             if (timeDelta > 0.5f) distance / timeDelta else 0f
                         }
                         
-                        // Применяем порог для фильтрации шума GPS при стоянке (менее ~1.8 км/ч)
                         val speedKmh = if (rawSpeedMps < 0.5f) 0f else rawSpeedMps * 3.6f
-                        
-                        // Сохраняем мгновенную скорость
                         repository.saveCurrentSpeed(speedKmh)
                         
-                        // Игнорируем перемещения менее 2 метров для фильтрации дрейфа одометра
                         if (distance >= 3.0f) {
                             val currentTotal = repository.getTotalDistance()
                             val newTotal = currentTotal + distance
@@ -82,7 +94,7 @@ class LocationService : Service() {
                             AppLogger.d(applicationContext, "Одометр обновлен: +$distance м, Итого: $newTotal м")
                         }
                         
-                        // Обновляем уведомление с текущими данными
+                        // Обновляем уведомление
                         updateNotification(speedKmh, repository.getTotalDistance())
                     }
                 }
@@ -93,21 +105,27 @@ class LocationService : Service() {
     @SuppressLint("MissingPermission")
     private fun updateNotification(speedKmh: Float, totalDistanceMeters: Float) {
         val traveledKm = totalDistanceMeters / 1000f
+        val baseKm = repository.getFieldValue("km")
+        val totalOdometer = baseKm + traveledKm
         
         val isRussian = repository.getIsRussian()
         
+        val headingDegrees = ((currentHeading % 360 + 360) % 360).toInt()
+        val direction = getDirectionString(headingDegrees.toFloat(), isRussian)
+
         val title = if (isRussian) "TrackLit: Поездка активна" else "TrackLit: Trip Active"
         val contentFormat = if (isRussian) {
-            "Скорость: %.0f км/ч | Путь: %.2f км"
+            "Одометр: %.2f км | Путь: %.2f км\nСкорость: %.0f км/ч | Курс: %s"
         } else {
-            "Speed: %.0f km/h | Trip: %.2f km"
+            "Odo: %.2f km | Trip: %.2f km\nSpeed: %.0f km/h | Heading: %s"
         }
         
-        val formattedContent = String.format(java.util.Locale.US, contentFormat, speedKmh, traveledKm)
+        val formattedContent = String.format(java.util.Locale.US, contentFormat, totalOdometer, traveledKm, speedKmh, direction)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(formattedContent)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(formattedContent))
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -118,11 +136,36 @@ class LocationService : Service() {
         manager.notify(NOTIFICATION_ID, notification)
     }
 
+    private fun getDirectionString(bearing: Float, isRussian: Boolean): String {
+        val directions = if (isRussian) {
+            listOf("С", "СВ", "В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ")
+        } else {
+            listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+        }
+        val index = ((bearing + 22.5) % 360 / 45).toInt()
+        return directions[index % 8] + " (${bearing.toInt()}°)"
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         AppLogger.d(this, "Service onStartCommand - Запуск обновления координат")
         startLocationUpdates()
         return START_STICKY
     }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_ROTATION_VECTOR) {
+            val rotationMatrix = FloatArray(9)
+            SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+            val orientationValues = FloatArray(3)
+            SensorManager.getOrientation(rotationMatrix, orientationValues)
+            val azimuth = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
+            if (!azimuth.isNaN()) {
+                currentHeading = -azimuth
+            }
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun startForegroundServiceSafe() {
         val isRussian = repository.getIsRussian()
@@ -181,6 +224,7 @@ class LocationService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        sensorManager.unregisterListener(this)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

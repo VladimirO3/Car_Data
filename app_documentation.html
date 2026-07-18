@@ -31,7 +31,7 @@
         <table>
             <tr><th>Метод / Функционал</th><th>Описание</th></tr>
             <tr><td class="method-name">onCreate()</td><td>Инициализирует UI, регистрирует слушателей настроек и проверяет состояние GPS.</td></tr>
-            <tr><td class="method-name">Compass Integration</td><td>Использует <b>Sensor.TYPE_ROTATION_VECTOR</b> для получения точного азимута и обновления UI компаса.</td></tr>
+            <tr><td class="method-name">Compass & Return Azimuth</td><td>Использует <b>Sensor.TYPE_ROTATION_VECTOR</b> для получения азимута. Рассчитывает обратный курс (+180°).</td></tr>
             <tr><td class="method-name">Navigation</td><td>Обрабатывает переключение между главным экраном, историей поездок и экраном инструкций.</td></tr>
             <tr><td class="method-name">onStartClicked()</td><td>Проверяет GPS и разрешения (включая фоновые), затем инициирует запуск рейса.</td></tr>
             <tr><td class="method-name">startTripService()</td><td>Запускает Foreground Service для фонового отслеживания с типом "location".</td></tr>
@@ -69,8 +69,9 @@
         <p>Foreground Service, обеспечивающий непрерывность сбора данных. Работает в отдельном процессе от UI.</p>
         <table>
             <tr><th>Метод</th><th>Описание</th></tr>
-            <tr><td class="method-name">updateNotification()</td><td>Динамически обновляет уведомление в шторке: показывает текущую скорость, пройденный путь и статус рейса.</td></tr>
-            <tr><td class="method-name">onLocationResult()</td><td>Фильтрует GPS-шумы (точность < 20м) и суммирует дистанцию только при перемещении > 3м.</td></tr>
+            <tr><td class="method-name">updateNotification()</td><td>Динамически обновляет уведомление: текущая скорость, путь, <b>общий одометр</b> и <b>курс по компасу</b>.</td></tr>
+            <tr><td class="method-name">onLocationResult()</td><td>Фильтрует GPS-шумы (точность < 50м) и суммирует дистанцию при перемещении > 3м.</td></tr>
+            <tr><td class="method-name">onSensorChanged()</td><td>Обновляет значение азимута для отображения текущего курса в шторке уведомлений.</td></tr>
         </table>
     </div>
 
