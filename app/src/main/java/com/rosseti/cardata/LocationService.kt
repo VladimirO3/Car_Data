@@ -6,6 +6,7 @@ package com.rosseti.cardata
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -43,10 +44,13 @@ class LocationService : Service(), SensorEventListener {
     }
 
     override fun onCreate() {
+        // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
+        // Вызываем до любых логов или инициализаций
+        repository = SettingsRepository(applicationContext)
+        startForegroundServiceSafe()
+
         super.onCreate()
         AppLogger.d(this, "Service onCreate - Инициализация службы")
-        
-        repository = SettingsRepository(applicationContext)
         
         // Инициализация датчиков для компаса в уведомлении
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -54,9 +58,6 @@ class LocationService : Service(), SensorEventListener {
         rotationSensor?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
-        
-        // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
-        startForegroundServiceSafe()
         
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         
@@ -83,15 +84,20 @@ class LocationService : Service(), SensorEventListener {
                             if (timeDelta > 0.5f) distance / timeDelta else 0f
                         }
                         
-                        val speedKmh = if (rawSpeedMps < 0.5f) 0f else rawSpeedMps * 3.6f
+                        val speedKmh = if (rawSpeedMps < 1.0f) 0f else rawSpeedMps * 3.6f
                         repository.saveCurrentSpeed(speedKmh)
                         
-                        if (distance >= 3.0f) {
+                        // Фильтрация дрейфа GPS: добавляем расстояние только если есть реальное движение (скорость > 3.6 км/ч)
+                        // и пройденное расстояние между точками значимо (>= 5 метров)
+                        if (speedKmh > 2.0f && distance >= 5.0f) {
                             val currentTotal = repository.getTotalDistance()
                             val newTotal = currentTotal + distance
                             repository.saveTotalDistance(newTotal)
                             lastLocation = location
                             AppLogger.d(applicationContext, "Одометр обновлен: +$distance м, Итого: $newTotal м")
+                        } else if (speedKmh == 0f) {
+                            // Если стоим на месте, обновляем базовую точку, чтобы не накапливать микродвижения
+                            lastLocation = location
                         }
                         
                         // Обновляем уведомление
@@ -122,11 +128,20 @@ class LocationService : Service(), SensorEventListener {
         
         val formattedContent = String.format(java.util.Locale.US, contentFormat, totalOdometer, traveledKm, speedKmh, direction)
 
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(formattedContent)
             .setStyle(NotificationCompat.BigTextStyle().bigText(formattedContent))
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
@@ -148,6 +163,8 @@ class LocationService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         AppLogger.d(this, "Service onStartCommand - Запуск обновления координат")
+        // Повторный вызов на случай, если сервис был перезапущен или startForegroundService был вызван для уже запущенного сервиса
+        startForegroundServiceSafe()
         startLocationUpdates()
         return START_STICKY
     }
@@ -181,10 +198,19 @@ class LocationService : Service(), SensorEventListener {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
 
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()

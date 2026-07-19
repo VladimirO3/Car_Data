@@ -10,6 +10,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.Executors
 
 /**
  * Система логирования, которая пишет данные в файл и отправляет в Firebase.
@@ -17,18 +18,22 @@ import java.util.Locale
 object AppLogger {
     private const val TAG = "TrackLitLog"
     private const val LOG_FILE_NAME = "app_logs.txt"
+    private val logExecutor = Executors.newSingleThreadExecutor()
 
     fun d(context: Context, message: String) {
         val formattedMessage = formatMessage("DEBUG", message)
         Log.d(TAG, formattedMessage)
-        writeToInternalFile(context, formattedMessage)
-        // FirebaseCrashlytics.getInstance().log(formattedMessage) // Optional: avoid logging every GPS point to Firebase
+        logExecutor.execute {
+            writeToInternalFile(context, formattedMessage)
+        }
     }
 
     fun e(context: Context, message: String, throwable: Throwable? = null) {
         val formattedMessage = formatMessage("ERROR", message + (throwable?.let { " | ${it.message}" } ?: ""))
         Log.e(TAG, formattedMessage, throwable)
-        writeToInternalFile(context, formattedMessage)
+        logExecutor.execute {
+            writeToInternalFile(context, formattedMessage)
+        }
         
         throwable?.let {
             FirebaseCrashlytics.getInstance().recordException(it)

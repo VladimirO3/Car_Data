@@ -64,6 +64,7 @@ android {
             )
             configure<com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension> {
                 mappingFileUploadEnabled = true
+                nativeSymbolUploadEnabled = true
             }
         }
     }
@@ -96,6 +97,7 @@ dependencies {
 	implementation(libs.firebase.config)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.crashlytics)
+    implementation("com.google.firebase:firebase-crashlytics-ndk")
     implementation(libs.firebase.analytics)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

@@ -25,6 +25,9 @@ import android.util.Log
 import android.widget.Toast
 import android.widget.Toast.makeText
 import androidx.activity.ComponentActivity
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
@@ -33,6 +36,7 @@ import androidx.activity.viewModels
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +57,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
@@ -77,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -85,11 +91,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -134,10 +143,19 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (fineGranted) {
-            checkBackgroundPermission()
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        val notificationGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            permissions[Manifest.permission.POST_NOTIFICATIONS] == true
+        } else true
+
+        if (fineGranted || coarseGranted) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                checkBackgroundPermission()
+            } else {
+                startTripService()
+            }
         } else {
-            makeText(this, "Location permission required", Toast.LENGTH_SHORT).show()
+            makeText(this, if (viewModel.isRussian.value) "Требуется доступ к местоположению" else "Location permission required", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -147,7 +165,10 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         if (isGranted) {
             startTripService()
         } else {
-            makeText(this, "Background access not granted", Toast.LENGTH_SHORT).show()
+            val msg = if (viewModel.isRussian.value) 
+                "Фоновый доступ не предоставлен. Приложение может работать нестабильно в свернутом виде." 
+                else "Background access not granted. App might be unstable when minimized."
+            makeText(this, msg, Toast.LENGTH_LONG).show()
             startTripService()
         }
     }
@@ -236,15 +257,20 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissionLauncher.launch(permissions.toTypedArray())
-            } else {
-                checkBackgroundPermission()
-            }
-        } else {
+        val hasFine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasNotification = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else true
+
+        if (!hasFine || !hasCoarse || !hasNotification) {
             requestPermissionLauncher.launch(permissions.toTypedArray())
+        } else {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                checkBackgroundPermission()
+            } else {
+                startTripService()
+            }
         }
     }
 
@@ -321,7 +347,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 }
 
 enum class Screen {
-    MAIN, HISTORY, INSTRUCTION
+    MAIN, HISTORY, INSTRUCTION, MAP
 }
 
 @Composable
@@ -332,50 +358,308 @@ fun MainLocationScreen(
 ) {
     val context = LocalContext.current
     var currentScreen by remember { mutableStateOf(Screen.MAIN) }
+    var totalDrag by remember { mutableStateOf(Offset.Zero) }
 
-    if (currentScreen == Screen.HISTORY) {
-        BackHandler { currentScreen = Screen.MAIN }
-        HistoryScreen(
-            history = viewModel.tripHistory,
-            isRussian = viewModel.isRussian.value,
-            onBack = { currentScreen = Screen.MAIN },
-            onShare = { shareTripHistory(context) },
-            onClear = { viewModel.clearHistory() }
-        )
-    } else if (currentScreen == Screen.INSTRUCTION) {
-        BackHandler { currentScreen = Screen.MAIN }
-        InstructionScreen(
-            isRussian = viewModel.isRussian.value,
-            onBack = { currentScreen = Screen.MAIN }
-        )
-    } else {
-        MainLocationContent(
-            fields = viewModel.fields,
-            isSpring = viewModel.isSpring.value,
-            isWinter = viewModel.isWinter.value,
-            isTripStarted = viewModel.isTripStarted.value,
-            isRussian = viewModel.isRussian.value,
-            compassHeading = viewModel.compassHeading.value,
-            onSpringChange = { viewModel.toggleSpring(it) },
-            onWinterChange = { viewModel.toggleWinter(it) },
-            onLanguageToggle = { viewModel.toggleLanguage() },
-            onFieldChange = viewModel::onFieldChange,
-            onHistoryClick = { currentScreen = Screen.HISTORY },
-            onInstructionClick = { currentScreen = Screen.INSTRUCTION },
-            onStartClick = {
-                onStart()
-                val kmValue = viewModel.fields.getOrNull(0)?.value ?: ""
-                if (kmValue.isNotEmpty()) {
-                    val msg = if (viewModel.isRussian.value) "Поездка начата" else "Trip started"
-                    makeText(context, msg, Toast.LENGTH_SHORT).show()
+    // Детектор свайпа для перехода к карте (в любую сторону)
+    val swipeModifier = if (currentScreen == Screen.MAIN) {
+        Modifier.pointerInput(Unit) {
+            detectDragGestures(
+                onDragStart = { totalDrag = Offset.Zero },
+                onDrag = { change, dragAmount ->
+                    totalDrag += dragAmount
+                    // Если свайп достаточно длинный (в любую сторону)
+                    if (totalDrag.getDistance() > 300f) { 
+                        change.consume()
+                        currentScreen = Screen.MAP
+                    }
+                }
+            )
+        }
+    } else Modifier
+
+    Box(modifier = Modifier.fillMaxSize().then(swipeModifier)) {
+        if (currentScreen == Screen.HISTORY) {
+            BackHandler { currentScreen = Screen.MAIN }
+            HistoryScreen(
+                history = viewModel.tripHistory,
+                isRussian = viewModel.isRussian.value,
+                onBack = { currentScreen = Screen.MAIN },
+                onShare = { shareTripHistory(context) },
+                onClear = { viewModel.clearHistory() }
+            )
+        } else if (currentScreen == Screen.INSTRUCTION) {
+            BackHandler { currentScreen = Screen.MAIN }
+            InstructionScreen(
+                isRussian = viewModel.isRussian.value,
+                onBack = { currentScreen = Screen.MAIN }
+            )
+        } else if (currentScreen == Screen.MAP) {
+            BackHandler { currentScreen = Screen.MAIN }
+            MapScreen(
+                isRussian = viewModel.isRussian.value,
+                onBack = { currentScreen = Screen.MAIN }
+            )
+        } else {
+            MainLocationContent(
+                fields = viewModel.fields,
+                isSpring = viewModel.isSpring.value,
+                isWinter = viewModel.isWinter.value,
+                isTripStarted = viewModel.isTripStarted.value,
+                isRussian = viewModel.isRussian.value,
+                compassHeading = viewModel.compassHeading.value,
+                onSpringChange = { viewModel.toggleSpring(it) },
+                onWinterChange = { viewModel.toggleWinter(it) },
+                onLanguageToggle = { viewModel.toggleLanguage() },
+                onFieldChange = viewModel::onFieldChange,
+                onHistoryClick = { currentScreen = Screen.HISTORY },
+                onInstructionClick = { currentScreen = Screen.INSTRUCTION },
+                onStartClick = {
+                    onStart()
+                    val kmValue = viewModel.fields.getOrNull(0)?.value ?: ""
+                    if (kmValue.isNotEmpty()) {
+                        val msg = if (viewModel.isRussian.value) "Поездка начата" else "Trip started"
+                        makeText(context, msg, Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onStopClick = {
+                    onStop()
+                    val msg = if (viewModel.isRussian.value) "Поездка завершена!" else "Trip completed!"
+                    makeText(context, msg, Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+fun MapScreen(
+    isRussian: Boolean,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    var locationUrl by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+
+    // Очистка WebView при выходе с экрана
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            webViewInstance?.apply {
+                stopLoading()
+                clearHistory()
+                loadUrl("about:blank")
+                onPause()
+                destroy()
+            }
+            webViewInstance = null
+        }
+    }
+
+    // Используем Яндекс Карты
+    LaunchedEffect(Unit) {
+        val fineLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fineLocationPermission) {
+            errorMessage = if (isRussian) "Нет разрешения на геолокацию" else "No location permission"
+            isLoading = false
+            return@LaunchedEffect
+        }
+
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+        if (!locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)) {
+            errorMessage = if (isRussian) "GPS выключен" else "GPS is disabled"
+            isLoading = false
+            return@LaunchedEffect
+        }
+
+        val locationRequest = com.google.android.gms.location.CurrentLocationRequest.Builder()
+            .setPriority(com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY)
+            .setDurationMillis(15000)
+            .setMaxUpdateAgeMillis(60000)
+            .build()
+
+        try {
+            // Сначала пробуем получить последнее известное местоположение
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null && locationUrl == null) {
+                    val lat = location.latitude
+                    val lon = location.longitude
+                    locationUrl = "https://yandex.ru/maps/?pt=$lon,$lat&z=16&l=map"
+                }
+            }
+
+            // Затем запрашиваем точное текущее местоположение
+            fusedLocationClient.getCurrentLocation(locationRequest, null)
+                .addOnSuccessListener { location ->
+                    if (location != null) {
+                        val lat = location.latitude
+                        val lon = location.longitude
+                        val newUrl = "https://yandex.ru/maps/?pt=$lon,$lat&z=16&l=map"
+                        // Обновляем только если координаты значительно изменились (избегаем дрожания)
+                        if (locationUrl == null || locationUrl != newUrl) {
+                            locationUrl = newUrl
+                        }
+                    } else if (locationUrl == null) {
+                        errorMessage = if (isRussian) "Не удалось определить координаты" else "Could not determine coordinates"
+                        isLoading = false
+                    }
+                }
+                .addOnFailureListener { e ->
+                    if (locationUrl == null) {
+                        errorMessage = e.message ?: "Error"
+                        isLoading = false
+                    }
+                }
+        } catch (e: SecurityException) {
+            errorMessage = e.message
+            isLoading = false
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        AndroidView(
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    webViewInstance = this
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+                        WebView.setWebContentsDebuggingEnabled(true)
+                    }
+                    
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                            val url = request?.url?.toString() ?: ""
+                            return if (url.startsWith("http://") || url.startsWith("https://")) {
+                                false
+                            } else {
+                                true
+                            }
+                        }
+
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                            super.onPageStarted(view, url, favicon)
+                            Log.d("MapScreen", "Started loading: $url")
+                        }
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            Log.d("MapScreen", "Finished loading: $url")
+                            isLoading = false
+                        }
+                        override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                            super.onReceivedError(view, request, error)
+                            if (request?.isForMainFrame == true) {
+                                Log.e("MapScreen", "WebView Error: ${error?.errorCode} - ${error?.description}")
+                                errorMessage = if (isRussian) "Ошибка сети. Проверьте интернет." else "Network error. Check connection."
+                                isLoading = false
+                            }
+                        }
+                    }
+
+                    webChromeClient = object : android.webkit.WebChromeClient() {
+                        override fun onGeolocationPermissionsShowPrompt(origin: String?, callback: android.webkit.GeolocationPermissions.Callback?) {
+                            callback?.invoke(origin, true, false)
+                        }
+                    }
+                    
+                    settings.apply {
+                        javaScriptEnabled = true
+                        domStorageEnabled = true
+                        databaseEnabled = true
+                        setGeolocationEnabled(true)
+                        useWideViewPort = true
+                        loadWithOverviewMode = true
+                        mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        setSupportZoom(true)
+                        builtInZoomControls = true
+                        displayZoomControls = false
+                        cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                    }
+                    
+                    android.webkit.CookieManager.getInstance().setAcceptCookie(true)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    }
+
+                    settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
+                    setBackgroundColor(android.graphics.Color.WHITE)
                 }
             },
-            onStopClick = {
-                onStop()
-                val msg = if (viewModel.isRussian.value) "Поездка завершена!" else "Trip completed!"
-                makeText(context, msg, Toast.LENGTH_LONG).show()
-            }
+            update = { webView ->
+                locationUrl?.let { url ->
+                    // Загружаем только если URL реально изменился и еще не загружается
+                    // И это не техническая страница "about:blank"
+                    if (webView.url != url && !url.contains("about:blank")) {
+                        Log.d("MapScreen", "Updating WebView URL to: $url")
+                        webView.loadUrl(url)
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize()
         )
+
+        if (isLoading && errorMessage == null) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 4.dp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = if (isRussian) "Поиск спутников и загрузка карты..." else "Searching for satellites and loading map...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        
+        if (errorMessage != null) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn, 
+                    contentDescription = null, 
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = errorMessage!!,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = onBack) {
+                    Text(if (isRussian) "Назад" else "Back")
+                }
+            }
+        }
+
+        // Кнопка-крестик для выхода
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), MaterialTheme.shapes.extraLarge)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = if (isRussian) "Закрыть" else "Close",
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 
