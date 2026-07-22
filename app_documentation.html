@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Документация TrackLit</title>
+    <title>Документация TrackLit v1.2</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f4f7f6; }
         h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
@@ -21,62 +21,46 @@
 </head>
 <body>
 
-    <h1>Документация приложения TrackLit</h1>
-    <p>Это техническое описание архитектуры, классов и методов Android-приложения для учета пробега и расхода топлива.</p>
+    <h1>Документация приложения TrackLit v1.2</h1>
+    <p>Техническое описание интерфейса «приборной панели» и системы навигации.</p>
 
     <div class="class-box">
-        <h2>MainActivity</h2>
-        <span class="tag">UI Layer</span>
-        <p>Центральная Activity приложения. Управляет жизненным циклом UI (Jetpack Compose), навигацией между экранами и интеграцией с аппаратными датчиками.</p>
+        <h2>MainActivity & UI</h2>
+        <span class="tag">Jetpack Compose</span>
+        <p>Центральный узел приложения с адаптивным интерфейсом и навигацией свайпами.</p>
         <table>
-            <tr><th>Метод / Функционал</th><th>Описание</th></tr>
-            <tr><td class="method-name">onCreate()</td><td>Инициализирует UI, регистрирует слушателей настроек и проверяет состояние GPS.</td></tr>
-            <tr><td class="method-name">Compass & Return Azimuth</td><td>Использует <b>Sensor.TYPE_ROTATION_VECTOR</b> для получения азимута. Рассчитывает обратный курс (+180°).</td></tr>
-            <tr><td class="method-name">Navigation</td><td>Обрабатывает переключение между главным экраном, историей поездок и экраном инструкций.</td></tr>
-            <tr><td class="method-name">onStartClicked()</td><td>Проверяет GPS и разрешения (включая фоновые), затем инициирует запуск рейса.</td></tr>
-            <tr><td class="method-name">startTripService()</td><td>Запускает Foreground Service для фонового отслеживания с типом "location".</td></tr>
+            <tr><th>Компонент</th><th>Описание</th></tr>
+            <tr><td class="method-name">AutomotiveGaugeField</td><td>Кастомный датчик с отрисовкой дуги (шкалы) через Canvas. Заменяет стандартные поля ввода.</td></tr>
+            <tr><td class="method-name">Start/Stop Button</td><td>Единая круглая кнопка управления. Меняет состояние и текст динамически.</td></tr>
+            <tr><td class="method-name">HorizontalPager</td><td>Обеспечивает плавное переключение между панелью приборов и Яндекс Картами.</td></tr>
+            <tr><td class="method-name">Yandex Maps Integration</td><td>Встроенный навигатор с отображением пробок и кнопкой перехода в приложение Яндекс Карты.</td></tr>
         </table>
-        <p><i>Примечание: Поддерживается динамическая смена языка (RU/EN) и адаптация под Android 15+. Поле «Спидометр» переименовано в «Одометр» для точности.</i></p>
     </div>
 
     <div class="class-box">
         <h2>MainViewModel</h2>
-        <span class="tag">Business Logic Layer</span>
-        <p>Обрабатывает все вычисления, хранит состояние UI и синхронизирует данные между экраном и репозиторием. Поддерживает реактивное обновление при изменении дистанции.</p>
+        <span class="tag">Business Logic</span>
+        <p>Управляет данными одометра и расчетом топлива. Синхронизирует состояние UI с GPS-сервисом.</p>
         <table>
             <tr><th>Метод</th><th>Описание</th></tr>
-            <tr><td class="method-name">getConsumptionFactor()</td><td>Рассчитывает суммарный коэффициент расхода: <b>аддитивно</b> прибавляет по +10% за "Зиму" и "Весну" (макс. +20%).</td></tr>
-            <tr><td class="method-name">toggleLanguage()</td><td>Переключает язык интерфейса и обновляет метки всех полей (NumericField).</td></tr>
-            <tr><td class="method-name">onStartTrip()</td><td>Сбрасывает текущий пробег, фиксирует время старта и блокирует поля ввода для защиты данных.</td></tr>
-            <tr><td class="method-name">onStopTrip()</td><td>Формирует запись о поездке (TripRecord), сохраняет её в историю и разблокирует поля.</td></tr>
-            <tr><td class="method-name">refreshDistance()</td><td>Обновляет UI-поля (спидометр, остаток топлива, средняя скорость) на основе актуальных данных от GPS.</td></tr>
+            <tr><td class="method-name">deleteHistoryItem()</td><td>Позволяет удалять выбранную поездку из списка истории.</td></tr>
+            <tr><td class="method-name">calculateRemainingFuel()</td><td>Вычисляет остаток бензина/дизеля на основе дистанции (метры -> км) и нормы расхода.</td></tr>
+            <tr><td class="method-name">onStartTrip()</td><td>Фиксирует начальные значения, блокирует редактирование "приборов".</td></tr>
         </table>
     </div>
 
     <div class="class-box">
-        <h2>Instruction & History Screens</h2>
-        <span class="tag">UI Layer</span>
-        <p>Дополнительные экраны для повышения удобства пользователя.</p>
+        <h2>History & Navigation</h2>
+        <span class="tag">Features</span>
         <ul>
-            <li><b>HistoryScreen</b>: Отображает список завершенных рейсов в обратном хронологическом порядке. Позволяет очищать историю и делиться ею.</li>
-            <li><b>InstructionScreen</b>: Интерактивное руководство по подготовке к рейсу, управлению и интерпретации данных.</li>
+            <li><b>Удаление по датам</b>: Каждая запись в истории имеет кнопку удаления (крестик).</li>
+            <li><b>Яндекс Координаты</b>: Отправка местоположения генерирует ссылку на yandex.ru/maps.</li>
+            <li><b>Оффлайн Карты</b>: WebView настроен на агрессивное использование кэша для работы без интернета.</li>
         </ul>
     </div>
 
-    <div class="class-box">
-        <h2>LocationService</h2>
-        <span class="tag">Background Layer</span>
-        <p>Foreground Service, обеспечивающий непрерывность сбора данных. Работает в отдельном процессе от UI.</p>
-        <table>
-            <tr><th>Метод</th><th>Описание</th></tr>
-            <tr><td class="method-name">updateNotification()</td><td>Динамически обновляет уведомление: текущая скорость, путь, <b>общий одометр</b> и <b>курс по компасу</b>.</td></tr>
-            <tr><td class="method-name">onLocationResult()</td><td>Фильтрует GPS-шумы (точность < 50м) и суммирует дистанцию при перемещении > 3м.</td></tr>
-            <tr><td class="method-name">onSensorChanged()</td><td>Обновляет значение азимута для отображения текущего курса в шторке уведомлений.</td></tr>
-        </table>
-    </div>
-
     <footer>
-        <p>TrackLit Documentation v1.1.2026 &copy; Osetrov V.V.</p>
+        <p>TrackLit Documentation v1.2.2026 &copy; Osetrov V.V.</p>
     </footer>
 
 </body>

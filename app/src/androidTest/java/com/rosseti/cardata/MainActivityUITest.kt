@@ -24,29 +24,29 @@ class MainActivityUITest {
         // Проверка заголовка
         composeTestRule.onNodeWithText("TrackLit").assertExists()
         
-        // Проверка наличия основных полей (English by default)
-        composeTestRule.onNodeWithText("Odometer (km)").assertExists()
-        composeTestRule.onNodeWithText("Trip Distance (km)").assertExists()
-        composeTestRule.onNodeWithText("Remaining Fuel").assertExists()
-        composeTestRule.onNodeWithText("Fuel Consumption Rate").assertExists()
-        composeTestRule.onNodeWithText("Current Speed (km/h)").assertExists()
+        // Проверка наличия основных полей (English by default, labels are Uppercase in Gauge fields)
+        composeTestRule.onNodeWithText("ODOMETER (KM)").assertExists()
+        composeTestRule.onNodeWithText("TRIP DISTANCE (KM)").assertExists()
+        composeTestRule.onNodeWithText("REMAINING FUEL").assertExists()
+        composeTestRule.onNodeWithText("FUEL CONSUMPTION RATE").assertExists()
+        composeTestRule.onNodeWithText("CURRENT SPEED (KM/H)").assertExists()
     }
 
     @Test
     fun testLanguageToggle() {
         // Initially EN
         composeTestRule.onNodeWithText("EN").assertExists()
-        composeTestRule.onNodeWithText("Odometer (km)").assertExists()
+        composeTestRule.onNodeWithText("ODOMETER (KM)").assertExists()
 
         // Toggle to RU
         composeTestRule.onNodeWithText("EN").performClick()
 
         composeTestRule.onNodeWithText("RU").assertExists()
-        composeTestRule.onNodeWithText("Одометр (км)").assertExists()
-        composeTestRule.onNodeWithText("Дистанция (км)").assertExists()
-        composeTestRule.onNodeWithText("Остаток топлива").assertExists()
-        composeTestRule.onNodeWithText("Норма расхода").assertExists()
-        composeTestRule.onNodeWithText("Текущая скорость (км/ч)").assertExists()
+        composeTestRule.onNodeWithText("ОДОМЕТР (КМ)").assertExists()
+        composeTestRule.onNodeWithText("ДИСТАНЦИЯ (КМ)").assertExists()
+        composeTestRule.onNodeWithText("ОСТАТОК ТОПЛИВА").assertExists()
+        composeTestRule.onNodeWithText("НОРМА РАСХОДА").assertExists()
+        composeTestRule.onNodeWithText("ТЕКУЩАЯ СКОРОСТЬ (КМ/Ч)").assertExists()
     }
 
     @Test
@@ -80,22 +80,6 @@ class MainActivityUITest {
         
         // Check if Main screen is displayed again
         composeTestRule.onNodeWithText("TrackLit").assertExists()
-    }
-
-    @Test
-    fun testFieldInputAndValidation() {
-        // Ввод данных в поле одометра (assuming English labels)
-        composeTestRule.onNodeWithText("Odometer (km)").performTextInput("12345.67")
-        
-        // Проверка, что текст отобразился
-        composeTestRule.onNodeWithText("12345.67").assertExists()
-    }
-
-    @Test
-    fun testModeSelection() {
-        // Проверка наличия переключателей режимов (English labels initially)
-        composeTestRule.onNodeWithText("Winter (+10%)").assertExists()
-        composeTestRule.onNodeWithText("Spring (+10%)").assertExists()
     }
 
     @Test

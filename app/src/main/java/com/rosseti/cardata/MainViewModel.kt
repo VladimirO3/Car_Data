@@ -174,6 +174,11 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         }
     }
 
+    fun deleteHistoryItem(record: String) {
+        repository.deleteTripRecord(record)
+        loadHistory()
+    }
+
     fun clearHistory() {
         repository.clearTripHistory()
         tripHistory.clear()

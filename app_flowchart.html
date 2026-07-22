@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Блок-схема TrackLit</title>
+    <title>Блок-схема TrackLit v1.2</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; }
@@ -13,14 +13,16 @@
 </head>
 <body>
     <div class="container">
-        <h1>Архитектура и логика TrackLit</h1>
+        <h1>Архитектура и логика TrackLit v1.2</h1>
         <div class="mermaid">
             graph TD
                 %% Слой UI
-                subgraph UI_Layer [Интерфейс Пользователя]
-                    A[MainActivity] -->|Нажатие Старт| B{Проверка GPS}
-                    A -->|Иконка Инфо| IS[Экран Инструкций]
-                    A -->|Иконка Истории| HS[Экран Истории]
+                subgraph UI_Layer [Интерфейс «Приборная панель»]
+                    A[MainActivity] -->|Свайп| MAP[Yandex Maps Tab]
+                    A -->|Круглая кнопка СТАРТ| B{Проверка GPS}
+                    A -->|Иконка Инфо| IS[Инструкция]
+                    A -->|Иконка Истории| HS[История рейсов]
+                    HS -->|Крестик| DEL[Удаление записи]
                     B -- Выключен --> C[Диалог: Включите GPS]
                     B -- Включен --> D[Запрос разрешений]
                     D -->|Разрешено| E[Запуск LocationService]
@@ -30,8 +32,8 @@
                 subgraph Hardware_Service [Сервисы и Датчики]
                     E --> F[Foreground Notification]
                     F --> G[FusedLocationProvider]
-                    G -->|Координаты| H[Фильтрация помех]
-                    H -->|Дистанция > 3м| I[Обновление дистанции в SharedPrefs]
+                    G -->|Координаты| H[Фильтрация помех < 3м]
+                    H -->|Дистанция| I[SharedPrefs: total_distance]
 
                     S[Rotation Vector Sensor] -->|Азимут| A
                 end
@@ -45,10 +47,10 @@
                 %% Слой Логики
                 subgraph Logic_Layer [Бизнес Логика]
                     K --> L[MainViewModel]
-                    L --> M[Расчет расхода топлива]
-                    L --> N[Расчет средней скорости]
-                    L --> RA[Расчет азимута возврата +180]
-                    M -->|Зима +10%, Весна +10%| O[Обновление UI State]
+                    L --> M[Расчет остатка топлива]
+                    L --> N[Расчет макс. скорости]
+                    L --> RA[Азимут возврата +180]
+                    M --> O[AutomotiveGaugeField State]
                     N --> O
                     RA --> O
                 end
@@ -63,6 +65,7 @@
                 style L fill:#9b59b6,color:#fff
                 style C fill:#e74c3c,color:#fff
                 style S fill:#f39c12,color:#fff
+                style MAP fill:#f1c40f,color:#000
         </div>
     </div>
     <script>

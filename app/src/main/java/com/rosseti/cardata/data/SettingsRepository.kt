@@ -129,6 +129,20 @@ class SettingsRepository(context: Context) {
     fun getTripHistory(): String = sharedPrefs.getString(KEY_TRIP_HISTORY, "") ?: ""
 
     /**
+     * Удаляет конкретную запись из истории.
+     */
+    fun deleteTripRecord(recordToDelete: String) {
+        val currentHistory = getTripHistory()
+        if (currentHistory.isEmpty()) return
+        
+        val historyList = currentHistory.split("\n").toMutableList()
+        if (historyList.remove(recordToDelete)) {
+            val newHistory = historyList.joinToString("\n")
+            sharedPrefs.edit { putString(KEY_TRIP_HISTORY, newHistory) }
+        }
+    }
+
+    /**
      * Очищает историю поездок.
      */
     fun clearTripHistory() {
