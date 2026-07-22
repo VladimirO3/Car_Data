@@ -112,6 +112,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.material)
     implementation(libs.play.services.location)
+    implementation(libs.play.ads.identifier)
     implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.navigation:navigation-compose:2.9.8")
     

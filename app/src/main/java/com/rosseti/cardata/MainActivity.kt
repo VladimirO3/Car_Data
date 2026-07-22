@@ -444,6 +444,24 @@ fun MapScreen(
     
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+    var lastLocationCoords by remember { mutableStateOf<android.location.Location?>(null) }
+    var lastRequestedUrl by remember { mutableStateOf<String?>(null) }
+
+    // Управление жизненным циклом WebView
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner, webViewInstance) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> webViewInstance?.onResume()
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> webViewInstance?.onPause()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // Очистка WebView при выходе с экрана
     androidx.compose.runtime.DisposableEffect(Unit) {
@@ -451,8 +469,11 @@ fun MapScreen(
             webViewInstance?.apply {
                 stopLoading()
                 clearHistory()
+                clearCache(true)
+                clearFormData()
                 loadUrl("about:blank")
                 onPause()
+                removeAllViews()
                 destroy()
             }
             webViewInstance = null
@@ -501,9 +522,12 @@ fun MapScreen(
                         val lat = location.latitude
                         val lon = location.longitude
                         val newUrl = "https://yandex.ru/maps/?pt=$lon,$lat&z=16&l=map"
-                        // Обновляем только если координаты значительно изменились (избегаем дрожания)
-                        if (locationUrl == null || locationUrl != newUrl) {
+                        
+                        // Обновляем только если координаты значительно изменились (минимум на 50 метров)
+                        val distance = lastLocationCoords?.distanceTo(location) ?: Float.MAX_VALUE
+                        if (locationUrl == null || distance > 50f) {
                             locationUrl = newUrl
+                            lastLocationCoords = location
                         }
                     } else if (locationUrl == null) {
                         errorMessage = if (isRussian) "Не удалось определить координаты" else "Could not determine coordinates"
@@ -525,11 +549,16 @@ fun MapScreen(
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         AndroidView(
             factory = { ctx ->
-                WebView(ctx).apply {
-                    webViewInstance = this
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
-                        WebView.setWebContentsDebuggingEnabled(true)
+                object : WebView(ctx) {
+                    override fun onProvideAutofillVirtualStructure(structure: android.view.ViewStructure?, flags: Int) {
+                        // Purposefully empty to fix onViewTypeAvailable NPE in cr_AutofillHintsService
                     }
+                    override fun onProvideAutofillStructure(structure: android.view.ViewStructure?, flags: Int) {
+                        // Purposefully empty to fix onViewTypeAvailable NPE in cr_AutofillHintsService
+                    }
+                }.apply {
+                    webViewInstance = this
+                    WebView.setWebContentsDebuggingEnabled(true)
                     
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -566,11 +595,13 @@ fun MapScreen(
                         }
                     }
                     
+                    importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+                    
                     settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
-                        databaseEnabled = true
-                        setGeolocationEnabled(true)
+                        databaseEnabled = false // Отключаем для экономии памяти, если карта работает без него
+                        setGeolocationEnabled(false)
                         useWideViewPort = true
                         loadWithOverviewMode = true
                         mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -579,6 +610,8 @@ fun MapScreen(
                         displayZoomControls = false
                         cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                     }
+                    
+                    setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                     
                     android.webkit.CookieManager.getInstance().setAcceptCookie(true)
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
@@ -591,10 +624,11 @@ fun MapScreen(
             },
             update = { webView ->
                 locationUrl?.let { url ->
-                    // Загружаем только если URL реально изменился и еще не загружается
-                    // И это не техническая страница "about:blank"
-                    if (webView.url != url && !url.contains("about:blank")) {
+                    // Загружаем только если URL реально изменился по сравнению с тем, что МЫ запрашивали
+                    if (lastRequestedUrl != url && !url.contains("about:blank")) {
                         Log.d("MapScreen", "Updating WebView URL to: $url")
+                        lastRequestedUrl = url
+                        webView.stopLoading() // Останавливаем текущие запросы перед новым
                         webView.loadUrl(url)
                     }
                 }
@@ -646,18 +680,22 @@ fun MapScreen(
             }
         }
 
-        // Кнопка-крестик для выхода
-        IconButton(
+        // Маленькая синяя кнопка-крестик для выхода (не перекрывает контент)
+        androidx.compose.material3.FilledIconButton(
             onClick = onBack,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), MaterialTheme.shapes.extraLarge)
+                .padding(top = 52.dp, end = 12.dp) // Опустили еще на 20dp ниже (было 32dp)
+                .size(30.dp),
+            colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         ) {
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = if (isRussian) "Закрыть" else "Close",
-                tint = MaterialTheme.colorScheme.onSurface
+                modifier = Modifier.size(16.dp)
             )
         }
     }
@@ -828,25 +866,32 @@ fun InstructionScreen(
                     number = "4",
                     title = if (isRussian) "Работа в фоне" else "Background Mode",
                     text = if (isRussian) 
-                        "Вы можете свернуть приложение. В шторке уведомлений будет отображаться актуальная скорость и пройденный путь в реальном времени." 
-                        else "You can minimize the app. Current speed and trip distance will be shown in the notification drawer."
+                        "Приложение работает в свернутом виде. Кликните на уведомление в шторке, чтобы мгновенно вернуться к расчетам." 
+                        else "The app works when minimized. Tap the notification in the drawer to return to the app instantly."
                 )
                 InstructionItem(
                     number = "5",
-                    title = if (isRussian) "Завершение рейса" else "End Trip",
+                    title = if (isRussian) "Карта и навигация" else "Map & Navigation",
                     text = if (isRussian) 
-                        "По прибытии нажмите «Стоп». Данные будут сохранены в историю, а поля ввода снова станут доступны для корректировки." 
-                        else "Click 'Stop' upon arrival. Data will be saved to history, and input fields will unlock."
+                        "Проведите пальцем (свайп) по главному экрану в любую сторону, чтобы открыть Яндекс Карты. Для выхода нажмите маленькую синюю кнопку с «крестиком»." 
+                        else "Swipe anywhere on the main screen to open Yandex Maps. Use the small blue 'X' button to return."
                 )
                 InstructionItem(
                     number = "6",
-                    title = if (isRussian) "Дополнительно" else "Extra Features",
+                    title = if (isRussian) "Завершение рейса" else "End Trip",
                     text = if (isRussian) 
-                        "Используйте кнопку с иконкой локации, чтобы отправить свои точные координаты через мессенджеры." 
-                        else "Use the location icon button to share your precise coordinates via messaging apps."
+                        "По прибытии нажмите «Стоп». Данные сохранятся в историю, а поля ввода снова разблокируются для корректировки." 
+                        else "Click 'Stop' upon arrival. Data will be saved to history, and input fields will unlock."
                 )
                 InstructionItem(
                     number = "7",
+                    title = if (isRussian) "Дополнительно" else "Extra Features",
+                    text = if (isRussian) 
+                        "Используйте кнопку с иконкой локации для отправки координат. Одометр начнет счет при скорости выше 2 км/ч." 
+                        else "Use the location icon to share coordinates. The odometer starts counting at speeds above 2 km/h."
+                )
+                InstructionItem(
+                    number = "8",
                     title = if (isRussian) "Использование компаса" else "Compass Usage",
                     text = if (isRussian)
                         "Темно-синяя стрелка указывает на Север, красная — на Юг. Зеленая метка показывает обратный курс для возврата."
@@ -912,6 +957,15 @@ fun MainLocationContent(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+    
+    // Адаптация под узкие и высокие экраны (например, 720*1640 ~ 360*820 dp)
+    val isNarrowScreen = configuration.screenWidthDp <= 360
+    val isTallScreen = configuration.screenHeightDp > 800
+    
+    val contentPadding = if (isNarrowScreen) 10.dp else 16.dp
+    val baseFontSize = if (isNarrowScreen) 14.sp else 16.sp
+    val statsFontSize = if (isNarrowScreen) 14.sp else 15.sp
     
     val currentTotalKm = fields.getOrNull(0)?.value?.toFloatOrNull() ?: 0f
     val currentRemainingFuel = fields.getOrNull(2)?.value?.toFloatOrNull() ?: 0f
@@ -1170,8 +1224,11 @@ fun MainLocationContent(
                     }
                 } else {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(10.dp).verticalScroll(scrollStateLeft),
-                        verticalArrangement = Arrangement.spacedBy(0.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(contentPadding)
+                            .verticalScroll(scrollStateLeft),
+                        verticalArrangement = Arrangement.spacedBy(if (isNarrowScreen) 6.dp else 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         val portraitStats = if (isRussian) {
@@ -1182,7 +1239,7 @@ fun MainLocationContent(
                         Text(
                             text = String.format(Locale.US, portraitStats,
                                 currentTotalKm, currentRemainingFuel, speed),
-                            fontSize = 15.sp,
+                            fontSize = statsFontSize,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.secondary,
                             textAlign = TextAlign.Center
@@ -1192,38 +1249,45 @@ fun MainLocationContent(
                                 OutlinedTextField(
                                     value = field.value,
                                     onValueChange = { onFieldChange(index, it) },
-                                    label = { Text(field.label) },
+                                    label = { Text(field.label, fontSize = if (isNarrowScreen) 12.sp else 14.sp) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     modifier = Modifier.widthIn(max = 500.dp).fillMaxWidth(),
-                                    readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km" || field.id == "current_speed_field"
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = baseFontSize),
+                                    readOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km" || field.id == "current_speed_field",
+                                    singleLine = true
                                 )
                             }
                         }
-                        Row {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
                             MyCheckboxScreen(isWinter, onWinterChange, winterLabel)
                             MyCheckboxScreenSpring(isSpring, onSpringChange, springLabel)
                         }
-                        Spacer(modifier = Modifier.height(0.dp))
+                        
+                        val buttonModifier = Modifier.widthIn(max = 500.dp).fillMaxWidth().height(if (isNarrowScreen) 52.dp else 56.dp)
+                        
                         Button(
                             onClick = onStartClick,
-                            modifier = Modifier.widthIn(max = 500.dp).fillMaxWidth(),
+                            modifier = buttonModifier,
                             enabled = !isTripStarted
-                        ) { Text(startLabel) }
+                        ) { Text(startLabel, fontSize = baseFontSize) }
+                        
                         Button(
                             onClick = onStopClick,
-                            modifier = Modifier.widthIn(max = 500.dp).fillMaxWidth(),
+                            modifier = buttonModifier,
                             enabled = isTripStarted
-                        ) { Text(stopLabel) }
+                        ) { Text(stopLabel, fontSize = baseFontSize) }
 
-                        Spacer(modifier = Modifier.height(0.dp))
-                        CompassView(compassHeading, isRussian)
+                        val compassSize = if (isTallScreen) 180.dp else if (isNarrowScreen) 140.dp else 160.dp
+                        CompassView(compassHeading, isRussian, modifier = Modifier.size(compassSize))
 
-                        Spacer(modifier = Modifier.height(0.dp))
-
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = copyrightLabel,
                             modifier = Modifier.fillMaxWidth().padding(bottom = 5.dp),
-                            fontSize = 12.sp,
+                            fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.outline,
                             textAlign = TextAlign.Center
                         )
@@ -1235,7 +1299,7 @@ fun MainLocationContent(
 }
 
 @Composable
-fun CompassView(heading: Float, isRussian: Boolean) {
+fun CompassView(heading: Float, isRussian: Boolean, modifier: Modifier = Modifier) {
     val animatedHeading by animateFloatAsState(targetValue = heading)
     val onSurface = MaterialTheme.colorScheme.onSurface
     
@@ -1249,7 +1313,7 @@ fun CompassView(heading: Float, isRussian: Boolean) {
     val returnLabel = if (isRussian) "Возврат" else "Return"
     
     Box(
-        modifier = Modifier.size(160.dp).padding(8.dp),
+        modifier = modifier.padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
