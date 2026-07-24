@@ -7,6 +7,7 @@ package com.rosseti.cardata.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import java.util.Locale
 
 /**
  * Репозиторий для управления параметрами постоянного приложения с помощью [SharedPreferences].
@@ -86,9 +87,10 @@ class SettingsRepository(context: Context) {
     }
 
     /**
-     * Извлекает последнюю сохраненную максимальную скорость.
+     * Извлекает максимальную скорость.
      */
-    fun getMaxSpeed(): String = sharedPrefs.getString(KEY_MAX_SPEED, "0.00") ?: "0.00"
+    fun getMaxSpeed(): String = sharedPrefs.getString(KEY_MAX_SPEED, "0") ?: "0"
+
 
     /**
      * Сохраняет текущую мгновенную скорость.
@@ -103,16 +105,48 @@ class SettingsRepository(context: Context) {
     fun getCurrentSpeed(): Float = sharedPrefs.getFloat(KEY_CURRENT_SPEED, 0f)
 
     /**
+     * Сохраняет выбранный режим темы (0 - Система, 1 - Светлая, 2 - Темная).
+     */
+    fun saveThemeMode(mode: Int) {
+        sharedPrefs.edit { putInt(KEY_THEME_MODE, mode) }
+    }
+
+    /**
+     * Извлекает текущий режим темы.
+     */
+    fun getThemeMode(): Int = sharedPrefs.getInt(KEY_THEME_MODE, 0)
+
+    /**
+     * Сохраняет выбранный режим языка (0 - Система, 1 - Русский, 2 - English).
+     */
+    fun saveLanguageMode(mode: Int) {
+        sharedPrefs.edit { putInt(KEY_LANGUAGE_MODE, mode) }
+    }
+
+    /**
+     * Извлекает текущий режим языка.
+     */
+    fun getLanguageMode(): Int = sharedPrefs.getInt(KEY_LANGUAGE_MODE, 0)
+
+    /**
      * Сохраняет выбранный язык (true - русский).
+     * @deprecated Используйте saveLanguageMode
      */
     fun saveIsRussian(isRussian: Boolean) {
-        sharedPrefs.edit { putBoolean(KEY_IS_RUSSIAN, isRussian) }
+        saveLanguageMode(if (isRussian) 1 else 2)
     }
 
     /**
      * Извлекает текущий выбор языка.
+     * @deprecated Используйте getLanguageMode
      */
-    fun getIsRussian(): Boolean = sharedPrefs.getBoolean(KEY_IS_RUSSIAN, false)
+    fun getIsRussian(): Boolean {
+        val mode = getLanguageMode()
+        if (mode == 0) {
+            return Locale.getDefault().language == "ru"
+        }
+        return mode == 1
+    }
 
     /**
      * Сохраняет запись о поездке в историю.
@@ -156,6 +190,8 @@ class SettingsRepository(context: Context) {
         private const val KEY_MAX_SPEED = "last_max_speed"
         private const val KEY_CURRENT_SPEED = "current_speed"
         private const val KEY_IS_RUSSIAN = "is_russian"
+        private const val KEY_LANGUAGE_MODE = "language_mode"
+        private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_TRIP_HISTORY = "trip_history"
     }
 }

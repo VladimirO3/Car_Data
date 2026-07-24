@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Документация TrackLit v1.2</title>
+    <title>Документация TrackLit v1.5</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f4f7f6; }
         h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
@@ -21,46 +21,46 @@
 </head>
 <body>
 
-    <h1>Документация приложения TrackLit v1.2</h1>
-    <p>Техническое описание интерфейса «приборной панели» и системы навигации.</p>
+    <h1>Документация приложения TrackLit v1.5</h1>
+    <p>Обновленное техническое описание интерфейса и новых функций (Тема, Язык, Свайп-навигация).</p>
 
     <div class="class-box">
-        <h2>MainActivity & UI</h2>
-        <span class="tag">Jetpack Compose</span>
-        <p>Центральный узел приложения с адаптивным интерфейсом и навигацией свайпами.</p>
+        <h2>MainActivity & UI Enhancements</h2>
+        <span class="tag">Jetpack Compose & Animation</span>
+        <p>Полностью переработанная система навигации и визуальных эффектов.</p>
         <table>
             <tr><th>Компонент</th><th>Описание</th></tr>
-            <tr><td class="method-name">AutomotiveGaugeField</td><td>Кастомный датчик с отрисовкой дуги (шкалы) через Canvas. Заменяет стандартные поля ввода.</td></tr>
-            <tr><td class="method-name">Start/Stop Button</td><td>Единая круглая кнопка управления. Меняет состояние и текст динамически.</td></tr>
-            <tr><td class="method-name">HorizontalPager</td><td>Обеспечивает плавное переключение между панелью приборов и Яндекс Картами.</td></tr>
-            <tr><td class="method-name">Yandex Maps Integration</td><td>Встроенный навигатор с отображением пробок и кнопкой перехода в приложение Яндекс Карты.</td></tr>
+            <tr><td class="method-name">Swipe Navigation</td><td>Горизонтальный свайп на главном экране открывает внешний навигатор (Яндекс Навигатор/Карты/Google Maps) с текущими координатами.</td></tr>
+            <tr><td class="method-name">SmokeEffect</td><td>Анимированный слой дыма, появляющийся при активном рейсе. Реализован через Canvas и InfiniteTransition.</td></tr>
+            <tr><td class="method-name">GoodbyeScreen</td><td>Анимированный экран прощания с "грустным лицом", отображаемый 3 секунды перед выходом из приложения.</td></tr>
+            <tr><td class="method-name">Theme Support</td><td>Динамическая поддержка Светлой, Темной и Системной тем оформления.</td></tr>
         </table>
     </div>
 
     <div class="class-box">
-        <h2>MainViewModel</h2>
-        <span class="tag">Business Logic</span>
-        <p>Управляет данными одометра и расчетом топлива. Синхронизирует состояние UI с GPS-сервисом.</p>
+        <h2>Settings & Localization</h2>
+        <span class="tag">Configuration</span>
+        <p>Новое централизованное меню настроек.</p>
         <table>
-            <tr><th>Метод</th><th>Описание</th></tr>
-            <tr><td class="method-name">deleteHistoryItem()</td><td>Позволяет удалять выбранную поездку из списка истории.</td></tr>
-            <tr><td class="method-name">calculateRemainingFuel()</td><td>Вычисляет остаток бензина/дизеля на основе дистанции (метры -> км) и нормы расхода.</td></tr>
-            <tr><td class="method-name">onStartTrip()</td><td>Фиксирует начальные значения, блокирует редактирование "приборов".</td></tr>
+            <tr><th>Функция</th><th>Описание</th></tr>
+            <tr><td class="method-name">Language Mode</td><td>Поддержка Русского, Английского и Системного языков с автоматическим переключением.</td></tr>
+            <tr><td class="method-name">Author Screen</td><td>Раздел с контактами разработчика (Osetrov V.V.) и ссылками на GitHub, Telegram и Email.</td></tr>
+            <tr><td class="method-name">Legal Info</td><td>Встроенное пользовательское соглашение и политика конфиденциальности с кнопкой подтверждения.</td></tr>
         </table>
     </div>
 
     <div class="class-box">
-        <h2>History & Navigation</h2>
-        <span class="tag">Features</span>
+        <h2>Technical Improvements</h2>
+        <span class="tag">Performance</span>
         <ul>
-            <li><b>Удаление по датам</b>: Каждая запись в истории имеет кнопку удаления (крестик).</li>
-            <li><b>Яндекс Координаты</b>: Отправка местоположения генерирует ссылку на yandex.ru/maps.</li>
-            <li><b>Оффлайн Карты</b>: WebView настроен на агрессивное использование кэша для работы без интернета.</li>
+            <li><b>Edge-to-Edge</b>: Приложение отображается под системными панелями, иконки статус-бара адаптируются под фон.</li>
+            <li><b>Cleanup</b>: Удален тяжелый WebView, навигация перенесена во внешние приложения для экономии ресурсов.</li>
+            <li><b>Custom Vectors</b>: Добавлена оригинальная иконка GitHub (Bootstrap style) в формате Vector Drawable.</li>
         </ul>
     </div>
 
     <footer>
-        <p>TrackLit Documentation v1.2.2026 &copy; Osetrov V.V.</p>
+        <p>TrackLit Documentation v1.5.2026 &copy; Osetrov V.V. Все права защищены.</p>
     </footer>
 
 </body>

@@ -25,6 +25,7 @@ import android.util.Log
 import android.widget.Toast
 import android.widget.Toast.makeText
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -33,6 +34,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -58,6 +65,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Close
@@ -125,6 +140,10 @@ import com.rosseti.cardata.ui.theme.CarDataTheme
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+/**
+ * Основная активность приложения TrackLit.
+ * Управляет жизненным циклом, разрешениями (GPS, уведомления) и датчиками (компас).
+ */
 class MainActivity : ComponentActivity(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
@@ -202,6 +221,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -218,7 +238,12 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
 
         setContent {
-            CarDataTheme {
+            val isDark = when (viewModel.themeMode.value) {
+                1 -> false
+                2 -> true
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+            CarDataTheme(darkTheme = isDark) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     MainLocationScreen(viewModel, ::onStartClicked, ::onStopClicked)
                 }
@@ -353,9 +378,13 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 }
 
 enum class Screen {
-    MAIN, HISTORY, INSTRUCTION, MAP
+    MAIN, SETTINGS, HISTORY, INSTRUCTION, LEGAL, AUTHOR, GOODBYE, WELCOME
 }
 
+/**
+ * Навигационный хост приложения. 
+ * Переключает экраны между главным, настройками, историей и экраном прощания.
+ */
 @Composable
 fun MainLocationScreen(
     viewModel: MainViewModel, 
@@ -363,66 +392,565 @@ fun MainLocationScreen(
     onStop: () -> Unit
 ) {
     val context = LocalContext.current
-    var currentScreen by remember { mutableStateOf(Screen.MAIN) }
-    val scope = rememberCoroutineScope()
+    var currentScreen by remember { mutableStateOf(Screen.WELCOME) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (currentScreen == Screen.HISTORY) {
-            BackHandler { currentScreen = Screen.MAIN }
-            HistoryScreen(
-                history = viewModel.tripHistory,
-                isRussian = viewModel.isRussian.value,
-                onBack = { currentScreen = Screen.MAIN },
-                onShare = { shareTripHistory(context) },
-                onClear = { viewModel.clearHistory() },
-                onDeleteItem = { viewModel.deleteHistoryItem(it) }
-            )
-        } else if (currentScreen == Screen.INSTRUCTION) {
-            BackHandler { currentScreen = Screen.MAIN }
-            InstructionScreen(
-                isRussian = viewModel.isRussian.value,
-                onBack = { currentScreen = Screen.MAIN }
-            )
-        } else {
-            val pagerState = rememberPagerState(pageCount = { 2 })
-            
-            BackHandler(enabled = pagerState.currentPage == 1) {
-                scope.launch { pagerState.animateScrollToPage(0) }
+        when (currentScreen) {
+            Screen.WELCOME -> {
+                WelcomeScreen {
+                    currentScreen = Screen.MAIN
+                }
             }
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                userScrollEnabled = true 
-            ) { page ->
-                if (page == 0) {
-                    MainLocationContent(
-                        fields = viewModel.fields,
-                        isTripStarted = viewModel.isTripStarted.value,
-                        isRussian = viewModel.isRussian.value,
-                        compassHeading = viewModel.compassHeading.value,
-                        onLanguageToggle = { viewModel.toggleLanguage() },
-                        onFieldChange = viewModel::onFieldChange,
-                        onHistoryClick = { currentScreen = Screen.HISTORY },
-                        onInstructionClick = { currentScreen = Screen.INSTRUCTION },
-                        onStartClick = {
-                            onStart()
-                            val kmValue = viewModel.fields.getOrNull(0)?.value ?: ""
-                            if (kmValue.isNotEmpty()) {
-                                val msg = if (viewModel.isRussian.value) "Поездка начата" else "Trip started"
-                                makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        onStopClick = {
-                            onStop()
-                            val msg = if (viewModel.isRussian.value) "Поездка завершена!" else "Trip completed!"
-                            makeText(context, msg, Toast.LENGTH_LONG).show()
+            Screen.GOODBYE -> {
+                GoodbyeScreen {
+                    (context as? ComponentActivity)?.finishAffinity()
+                }
+            }
+            Screen.HISTORY -> {
+                BackHandler { currentScreen = Screen.SETTINGS }
+                HistoryScreen(
+                    history = viewModel.tripHistory,
+                    isRussian = viewModel.isRussian.value,
+                    onBack = { currentScreen = Screen.SETTINGS },
+                    onShare = { shareTripHistory(context) },
+                    onClear = { viewModel.clearHistory() },
+                    onDeleteItem = { viewModel.deleteHistoryItem(it) }
+                )
+            }
+            Screen.INSTRUCTION -> {
+                BackHandler { currentScreen = Screen.SETTINGS }
+                InstructionScreen(
+                    isRussian = viewModel.isRussian.value,
+                    onBack = { currentScreen = Screen.SETTINGS }
+                )
+            }
+            Screen.SETTINGS -> {
+                BackHandler { currentScreen = Screen.MAIN }
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onBack = { currentScreen = Screen.MAIN },
+                    onHistoryClick = { currentScreen = Screen.HISTORY },
+                    onInstructionClick = { currentScreen = Screen.INSTRUCTION },
+                    onLegalClick = { currentScreen = Screen.LEGAL },
+                    onAuthorClick = { currentScreen = Screen.AUTHOR }
+                )
+            }
+            Screen.LEGAL -> {
+                BackHandler { currentScreen = Screen.SETTINGS }
+                LegalScreen(
+                    isRussian = viewModel.isRussian.value,
+                    onBack = { currentScreen = Screen.SETTINGS }
+                )
+            }
+            Screen.AUTHOR -> {
+                BackHandler { currentScreen = Screen.SETTINGS }
+                AuthorScreen(
+                    isRussian = viewModel.isRussian.value,
+                    onBack = { currentScreen = Screen.SETTINGS }
+                )
+            }
+            Screen.MAIN -> {
+                MainLocationContent(
+                    fields = viewModel.fields,
+                    isTripStarted = viewModel.isTripStarted.value,
+                    isRussian = viewModel.isRussian.value,
+                    compassHeading = viewModel.compassHeading.value,
+                    onSettingsClick = { currentScreen = Screen.SETTINGS },
+                    onFieldChange = viewModel::onFieldChange,
+                    onExitClick = { currentScreen = Screen.GOODBYE },
+                    onStartClick = {
+                        onStart()
+                        val kmValue = viewModel.fields.getOrNull(0)?.value ?: ""
+                        if (kmValue.isNotEmpty()) {
+                            val msg = if (viewModel.isRussian.value) "Поездка начата" else "Trip started"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                         }
+                    },
+                    onStopClick = {
+                        onStop()
+                        val msg = if (viewModel.isRussian.value) "Поездка завершена!" else "Trip completed!"
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Приветственный экран приложения.
+ * Отображается в течение 3 секунд при запуске.
+ */
+@Composable
+fun WelcomeScreen(onFinished: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "welcome")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500),
+            repeatMode = RepeatMode.Reverse
+        ), label = "glow"
+    )
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(3000)
+        onFinished()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.surface
                     )
-                } else {
-                    MapScreen(
-                        isRussian = viewModel.isRussian.value,
-                        onBack = { scope.launch { pagerState.animateScrollToPage(0) } }
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(24.dp).alpha(alpha)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.size(120.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Добро пожаловать!",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "TrackLit",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.secondary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Ваш профессиональный GPS-трекер рейсов и расхода топлива.",
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Экран прощания с анимацией грустного лица.
+ * Отображается в течение 3 секунд перед закрытием приложения.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GoodbyeScreen(onFinished: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "goodbye")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000),
+            repeatMode = RepeatMode.Reverse
+        ), label = "fade"
+    )
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(3000)
+        onFinished()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Sad Face Drawing
+            Canvas(modifier = Modifier.size(120.dp).alpha(alpha)) {
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val radius = size.minDimension / 2f
+                
+                // Head
+                drawCircle(
+                    color = Color(0xFFFFD54F),
+                    radius = radius
+                )
+                
+                // Eyes
+                drawCircle(
+                    color = Color.Black,
+                    radius = 8f,
+                    center = Offset(center.x - radius * 0.3f, center.y - radius * 0.2f)
+                )
+                drawCircle(
+                    color = Color.Black,
+                    radius = 8f,
+                    center = Offset(center.x + radius * 0.3f, center.y - radius * 0.2f)
+                )
+                
+                // Sad Mouth
+                drawArc(
+                    color = Color.Black,
+                    startAngle = 0f,
+                    sweepAngle = -180f,
+                    useCenter = false,
+                    topLeft = Offset(center.x - radius * 0.4f, center.y + radius * 0.1f),
+                    size = androidx.compose.ui.geometry.Size(radius * 0.8f, radius * 0.4f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "До встречи!",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+/**
+ * Экран настроек приложения.
+ * Содержит переключатели языка, темы, переход к истории и правовой информации.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    viewModel: MainViewModel,
+    onBack: () -> Unit,
+    onHistoryClick: () -> Unit,
+    onInstructionClick: () -> Unit,
+    onLegalClick: () -> Unit,
+    onAuthorClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val isRussian = viewModel.isRussian.value
+    val title = if (isRussian) "Настройки" else "Settings"
+    
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
+        )
+    )
+
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text(title, fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Language Setting
+                val languageSubtitle = when (viewModel.languageMode.value) {
+                    0 -> if (isRussian) "Системный" else "System"
+                    1 -> if (isRussian) "Русский" else "Russian"
+                    else -> if (isRussian) "Английский" else "English"
+                }
+
+                SettingsItem(
+                    icon = Icons.Default.Info,
+                    title = if (isRussian) "Язык интерфейса" else "Interface Language",
+                    subtitle = if (isRussian) "Выбрано: $languageSubtitle" else "Selected: $languageSubtitle",
+                    onClick = { viewModel.toggleLanguage() }
+                )
+
+                // Theme Setting
+                val themeSubtitle = when (viewModel.themeMode.value) {
+                    0 -> if (isRussian) "Системная" else "System"
+                    1 -> if (isRussian) "Светлая" else "Light"
+                    else -> if (isRussian) "Темная" else "Dark"
+                }
+
+                SettingsItem(
+                    icon = Icons.Default.Warning, // Using Warning as a placeholder or maybe find a better one if possible, but let's stick to standard available for now
+                    title = if (isRussian) "Тема приложения" else "App Theme",
+                    subtitle = if (isRussian) "Выбрано: $themeSubtitle" else "Selected: $themeSubtitle",
+                    onClick = { viewModel.toggleTheme() }
+                )
+
+                // History
+                SettingsItem(
+                    icon = Icons.Default.Menu,
+                    title = if (isRussian) "История рейсов" else "Trip History",
+                    subtitle = if (isRussian) "Просмотр и удаление" else "View and delete records",
+                    onClick = onHistoryClick
+                )
+
+                // Instructions
+                SettingsItem(
+                    icon = Icons.Default.Info,
+                    title = if (isRussian) "Инструкция" else "Instructions",
+                    subtitle = if (isRussian) "Как пользоваться приложением" else "How to use the app",
+                    onClick = onInstructionClick
+                )
+
+                // Legal
+                SettingsItem(
+                    icon = Icons.Default.Lock,
+                    title = if (isRussian) "Правовая информация" else "Legal Information",
+                    subtitle = if (isRussian) "Политика конфиденциальности" else "Privacy Policy & EULA",
+                    onClick = onLegalClick
+                )
+
+                // Author
+                SettingsItem(
+                    icon = Icons.Default.AccountCircle,
+                    title = if (isRussian) "Связь с автором" else "Contact Author",
+                    subtitle = if (isRussian) "Предложения и замечания" else "Suggestions & feedback",
+                    onClick = onAuthorClick
+                )
+
+                // Share Location
+                SettingsItem(
+                    icon = Icons.Default.LocationOn,
+                    title = if (isRussian) "Поделиться координатами" else "Share Coordinates",
+                    subtitle = if (isRussian) "Отправить текущую локацию" else "Send your current location",
+                    onClick = { shareCurrentLocation(context) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LegalScreen(isRussian: Boolean, onBack: () -> Unit) {
+    val title = if (isRussian) "Правовая информация" else "Legal Info"
+    val acceptText = if (isRussian) "Принять и продолжить" else "Accept and Continue"
+    
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
+        )
+    )
+
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text(title, fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = if (isRussian) "Пользовательское соглашение" else "Terms of Service",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isRussian) 
+                                "1. Приложение TrackLit предоставляет инструменты для расчета параметров поездки.\n2. Автор не несет ответственности за точность показаний GPS.\n3. Данные хранятся локально на устройстве.\n4. Используя приложение, вы соглашаетесь с обработкой геопозиции в фоновом режиме."
+                                else "1. TrackLit provides tools for calculating trip parameters.\n2. The author is not responsible for GPS accuracy.\n3. Data is stored locally on the device.\n4. By using the app, you agree to background location processing.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = if (isRussian) "Политика конфиденциальности" else "Privacy Policy",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isRussian)
+                                "Приложение собирает данные о местоположении исключительно для расчета дистанции и скорости. Данные не передаются третьим лицам и не хранятся на серверах."
+                                else "The app collects location data solely for distance and speed calculations. Data is not shared with third parties or stored on servers.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = onBack,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(acceptText)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AuthorScreen(isRussian: Boolean, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val title = if (isRussian) "Связь с автором" else "Contact Author"
+    
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
+        )
+    )
+
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text(title, fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Surface(
+                    modifier = Modifier.size(100.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccountCircle,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize().padding(12.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = if (isRussian) "Предложения и замечания присылайте по ссылкам ниже" else "Please send your suggestions and feedback via the links below",
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
+                
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Telegram Link
+                    FilledTonalIconButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/osetrov_v"))
+                        context.startActivity(intent)
+                    }) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_telegram),
+                            contentDescription = "Telegram",
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Unspecified
+                        )
+                    }
+
+                    // GitHub Link
+                    FilledTonalIconButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/VladimirO3"))
+                        context.startActivity(intent)
+                    }) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_github),
+                            contentDescription = "GitHub",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    
+                    // Email Link
+                    FilledTonalIconButton(onClick = {
+                        val intent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = android.net.Uri.parse("mailto:osetrov.vv@gmail.com")
+                            putExtra(Intent.EXTRA_SUBJECT, "TrackLit Feedback")
+                        }
+                        context.startActivity(intent)
+                    }) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_gmail),
+                            contentDescription = "Email",
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Unspecified
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = if (isRussian) 
+                            "© 2026. Все права защищены. Приложение разработано для помощи водителям в расчете эксплуатационных параметров автомобиля."
+                            else "© 2026. All rights reserved. The app is designed to help drivers calculate vehicle operational parameters.",
+                        modifier = Modifier.padding(16.dp),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
@@ -430,313 +958,73 @@ fun MainLocationScreen(
     }
 }
 
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun MapScreen(
-    isRussian: Boolean,
-    onBack: () -> Unit
+fun SettingsItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    var locationUrl by remember { mutableStateOf<String?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    
-    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
-    var webViewInstance by remember { mutableStateOf<WebView?>(null) }
-    var lastLocationCoords by remember { mutableStateOf<android.location.Location?>(null) }
-    var lastRequestedUrl by remember { mutableStateOf<String?>(null) }
-
-    // Блокировка сна (Keep Screen On) пока открыта карта
-    val activity = context as? android.app.Activity
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose {
-            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
-
-    // Управление жизненным циклом WebView
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner, webViewInstance) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            when (event) {
-                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> webViewInstance?.onResume()
-                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> webViewInstance?.onPause()
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    // Очистка WebView при выходе с экрана
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            webViewInstance?.apply {
-                stopLoading()
-                clearHistory()
-                clearCache(true)
-                clearFormData()
-                loadUrl("about:blank")
-                onPause()
-                removeAllViews()
-                destroy()
-            }
-            webViewInstance = null
-        }
-    }
-
-    // Используем Яндекс Карты
-    LaunchedEffect(Unit) {
-        val fineLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!fineLocationPermission) {
-            errorMessage = if (isRussian) "Нет разрешения на геолокацию" else "No location permission"
-            isLoading = false
-            return@LaunchedEffect
-        }
-
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
-        if (!locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)) {
-            errorMessage = if (isRussian) "GPS выключен" else "GPS is disabled"
-            isLoading = false
-            return@LaunchedEffect
-        }
-
-        val locationRequest = com.google.android.gms.location.CurrentLocationRequest.Builder()
-            .setPriority(com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY)
-            .setDurationMillis(15000)
-            .setMaxUpdateAgeMillis(60000)
-            .build()
-
-        try {
-            // Сначала пробуем получить последнее известное местоположение
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                if (location != null && locationUrl == null) {
-                    val lat = location.latitude
-                    val lon = location.longitude
-                    locationUrl = "https://yandex.ru/maps/?ll=$lon,$lat&z=16&l=map,trf"
-                }
-            }
-
-            // Затем запрашиваем точное текущее местоположение
-            fusedLocationClient.getCurrentLocation(locationRequest, null)
-                .addOnSuccessListener { location ->
-                    if (location != null) {
-                        val lat = location.latitude
-                        val lon = location.longitude
-                        val newUrl = "https://yandex.ru/maps/?ll=$lon,$lat&z=16&l=map,trf"
-                        
-                        // Обновляем только если координаты значительно изменились (минимум на 50 метров)
-                        val distance = lastLocationCoords?.distanceTo(location) ?: Float.MAX_VALUE
-                        if (locationUrl == null || distance > 50f) {
-                            locationUrl = newUrl
-                            lastLocationCoords = location
-                        }
-                    } else if (locationUrl == null) {
-                        errorMessage = if (isRussian) "Не удалось определить координаты" else "Could not determine coordinates"
-                        isLoading = false
-                    }
-                }
-                .addOnFailureListener { e ->
-                    if (locationUrl == null) {
-                        errorMessage = e.message ?: "Error"
-                        isLoading = false
-                    }
-                }
-        } catch (e: SecurityException) {
-            errorMessage = e.message
-            isLoading = false
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        AndroidView(
-            factory = { ctx ->
-                object : WebView(ctx) {
-                    override fun onProvideAutofillVirtualStructure(structure: android.view.ViewStructure?, flags: Int) {
-                        // Purposefully empty to fix onViewTypeAvailable NPE in cr_AutofillHintsService
-                    }
-                    override fun onProvideAutofillStructure(structure: android.view.ViewStructure?, flags: Int) {
-                        // Purposefully empty to fix onViewTypeAvailable NPE in cr_AutofillHintsService
-                    }
-                }.apply {
-                    webViewInstance = this
-                    WebView.setWebContentsDebuggingEnabled(true)
-                    
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                            val url = request?.url?.toString() ?: ""
-                            return if (url.startsWith("http://") || url.startsWith("https://")) {
-                                false
-                            } else {
-                                true
-                            }
-                        }
-
-                        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                            super.onPageStarted(view, url, favicon)
-                            Log.d("MapScreen", "Started loading: $url")
-                        }
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            Log.d("MapScreen", "Finished loading: $url")
-                            isLoading = false
-                        }
-                        override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
-                            super.onReceivedError(view, request, error)
-                            if (request?.isForMainFrame == true) {
-                                Log.e("MapScreen", "WebView Error: ${error?.errorCode} - ${error?.description}")
-                                errorMessage = if (isRussian) "Ошибка сети. Проверьте интернет." else "Network error. Check connection."
-                                isLoading = false
-                            }
-                        }
-                    }
-
-                    webChromeClient = object : android.webkit.WebChromeClient() {
-                        override fun onGeolocationPermissionsShowPrompt(origin: String?, callback: android.webkit.GeolocationPermissions.Callback?) {
-                            callback?.invoke(origin, true, false)
-                        }
-                    }
-                    
-                    importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
-                    
-                    settings.apply {
-                        javaScriptEnabled = true
-                        domStorageEnabled = true
-                        databaseEnabled = false // Отключаем для экономии памяти, если карта работает без него
-                        setGeolocationEnabled(true) // Включено для работы синей точки направления
-                        useWideViewPort = true
-                        loadWithOverviewMode = true
-                        mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        setSupportZoom(true)
-                        builtInZoomControls = true
-                        displayZoomControls = false // Убираем лишние кнопки, используем жесты
-                        cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
-                        userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
-                    }
-                    
-                    setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
-                    
-                    android.webkit.CookieManager.getInstance().setAcceptCookie(true)
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    }
-
-                    setBackgroundColor(android.graphics.Color.WHITE)
-                }
-            },
-            update = { webView ->
-                locationUrl?.let { url ->
-                    // Загружаем только если URL реально изменился по сравнению с тем, что МЫ запрашивали
-                    if (lastRequestedUrl != url && !url.contains("about:blank")) {
-                        Log.d("MapScreen", "Updating WebView URL to: $url")
-                        lastRequestedUrl = url
-                        webView.stopLoading() // Останавливаем текущие запросы перед новым
-                        webView.loadUrl(url)
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        if (isLoading && errorMessage == null) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.primary,
-                    strokeWidth = 4.dp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = if (isRussian) "Поиск спутников и загрузка карты..." else "Searching for satellites and loading map...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-        
-        if (errorMessage != null) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Icon(
-                    imageVector = Icons.Default.LocationOn, 
-                    contentDescription = null, 
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(48.dp)
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.padding(8.dp).size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = errorMessage!!,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onBack) {
-                    Text(if (isRussian) "Назад" else "Back")
-                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
 
-        // Кнопка открытия внешнего приложения Яндекс. Карты (для оффлайн-карт)
-        androidx.compose.material3.FilledIconButton(
-            onClick = {
-                lastLocationCoords?.let { location ->
-                    val uri = android.net.Uri.parse("yandexmaps://maps.yandex.ru/?pt=${location.longitude},${location.latitude}&z=16&l=map")
-                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+private fun openExternalNavigator(context: android.content.Context) {
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+    try {
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                val lat = location.latitude
+                val lon = location.longitude
+                // Пытаемся открыть Яндекс Навигатор, если нет - Яндекс Карты, если нет - Google Maps
+                val yandexNaviUri = android.net.Uri.parse("yandexnavi://show_point_on_map?lat=$lat&lon=$lon&zoom=16")
+                val yandexMapsUri = android.net.Uri.parse("yandexmaps://maps.yandex.ru/?ll=$lon,$lat&z=16&l=map")
+                val googleMapsUri = android.net.Uri.parse("geo:$lat,$lon?z=16")
+
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, yandexNaviUri)
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    val mapsIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, yandexMapsUri)
                     try {
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        // Если приложение не установлено, открываем в браузере
-                        val webUri = android.net.Uri.parse("https://yandex.ru/maps/?pt=${location.longitude},${location.latitude}&z=16&l=map")
-                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, webUri))
+                        context.startActivity(mapsIntent)
+                    } catch (e2: Exception) {
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, googleMapsUri))
                     }
                 }
-            },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 52.dp, end = 52.dp) // Левее кнопки закрытия
-                .size(30.dp),
-            colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
-                contentColor = MaterialTheme.colorScheme.onSecondary
-            )
-        ) {
-            Icon(
-                imageVector = Icons.Default.LocationOn,
-                contentDescription = if (isRussian) "Открыть в приложении" else "Open in App",
-                modifier = Modifier.size(16.dp)
-            )
+            } else {
+                Toast.makeText(context, "Location not available", Toast.LENGTH_SHORT).show()
+            }
         }
-
-        // Маленькая синяя кнопка-крестик для выхода (не перекрывает контент)
-        androidx.compose.material3.FilledIconButton(
-            onClick = onBack,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 52.dp, end = 12.dp) // Опустили еще на 20dp ниже (было 32dp)
-                .size(30.dp),
-            colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = if (isRussian) "Закрыть" else "Close",
-                modifier = Modifier.size(16.dp)
-            )
-        }
+    } catch (e: SecurityException) {
+        Toast.makeText(context, "Permission error", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -922,8 +1210,8 @@ fun InstructionScreen(
                     number = "4",
                     title = if (isRussian) "Карта и навигация" else "Map & Navigation",
                     text = if (isRussian) 
-                        "Проведите пальцем (свайп) по главному экрану в любую сторону, чтобы открыть Яндекс Карты. Для выхода нажмите маленькую синюю кнопку с «крестиком»." 
-                        else "Swipe anywhere on the main screen to open Yandex Maps. Use the small blue 'X' button to return."
+                        "Проведите пальцем (свайп) в любую сторону по главному экрану, чтобы мгновенно открыть внешнее приложение навигации с вашей локацией." 
+                        else "Swipe anywhere on the main screen to instantly open your external navigation app with your location."
                 )
                 InstructionItem(
                     number = "5",
@@ -992,10 +1280,9 @@ fun MainLocationContent(
     isTripStarted: Boolean,
     isRussian: Boolean,
     compassHeading: Float,
-    onLanguageToggle: () -> Unit,
+    onSettingsClick: () -> Unit,
     onFieldChange: (Int, String) -> Unit,
-    onHistoryClick: () -> Unit,
-    onInstructionClick: () -> Unit,
+    onExitClick: () -> Unit,
     onStartClick: () -> Unit,
     onStopClick: () -> Unit
 ) {
@@ -1003,6 +1290,7 @@ fun MainLocationContent(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val screenWidth = configuration.screenWidthDp.dp
     val screenHeight = configuration.screenHeightDp.dp
+    val context = LocalContext.current
     
     // Адаптация под узкие и высокие экраны (например, 720*1640 ~ 360*820 dp)
     val isNarrowScreen = configuration.screenWidthDp <= 360
@@ -1033,11 +1321,28 @@ fun MainLocationContent(
     val stopLabel = if (isRussian) "Стоп" else "Stop"
     val copyrightLabel = if (isRussian) "© 2026. Все права защищены." else "© 2026. All rights reserved."
     val exitDesc = if (isRussian) "Выход" else "Exit"
-    val shareDesc = if (isRussian) "Отправить координаты" else "Send Coordinates"
-    val historyDesc = if (isRussian) "История поездок" else "Trip History"
-    val instructionDesc = if (isRussian) "Инструкция" else "Instructions"
+    val settingsDesc = if (isRussian) "Настройки" else "Settings"
 
-    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+    // Детектор свайпа для открытия навигатора (с защитой от многократного срабатывания)
+    var lastSwipeTime by remember { mutableStateOf(0L) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundBrush)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { _, dragAmount ->
+                    val currentTime = System.currentTimeMillis()
+                    if (Math.abs(dragAmount) > 45 && (currentTime - lastSwipeTime > 1500)) {
+                        lastSwipeTime = currentTime
+                        openExternalNavigator(context)
+                    }
+                }
+            }
+    ) {
+        if (isTripStarted) {
+            SmokeEffect()
+        }
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -1069,67 +1374,22 @@ fun MainLocationContent(
                         }
                     },
                     navigationIcon = {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                            modifier = (if (isLandscape) Modifier.padding(start = 20.dp) else Modifier).padding(start = 8.dp)
-                        ) {
-                            IconButton(
-                                onClick = onLanguageToggle,
-                                modifier = Modifier.size(30.dp)
-                            ) {
-                                Text(
-                                    text = if (isRussian) "RU" else "EN",
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            FilledTonalIconButton(
-                                onClick = onInstructionClick,
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                ),
-                                modifier = Modifier.size(30.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = instructionDesc,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
+                        // Оставляем пустым или добавляем что-то незначительное
                     },
                     actions = {
                         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 FilledTonalIconButton(
-                                    onClick = onHistoryClick,
+                                    onClick = onSettingsClick,
                                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                                         containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                                     ),
                                     modifier = Modifier.size(34.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Menu,
-                                        contentDescription = historyDesc,
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = settingsDesc,
                                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(6.dp))
-                                FilledTonalIconButton(
-                                    onClick = { shareCurrentLocation(localContext) },
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                                    ),
-                                    modifier = Modifier.size(34.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.LocationOn,
-                                        contentDescription = shareDesc,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -1137,7 +1397,7 @@ fun MainLocationContent(
                                 FilledTonalIconButton(
                                     onClick = {
                                         onStopClick()
-                                        (localContext as? ComponentActivity)?.finishAffinity()
+                                        onExitClick()
                                     },
                                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                                         containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)
@@ -1262,7 +1522,7 @@ fun MainLocationContent(
                             }
                         }
                         
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(0.dp))
                         
                         Button(
                             onClick = if (isTripStarted) onStopClick else onStartClick,
@@ -1278,7 +1538,7 @@ fun MainLocationContent(
                             )
                         }
 
-                        val compassSize = if (isTallScreen) 160.dp else if (isNarrowScreen) 130.dp else 150.dp
+                        val compassSize = if (isTallScreen) 140.dp else if (isNarrowScreen) 110.dp else 130.dp
                         CompassView(compassHeading, isRussian, modifier = Modifier.size(compassSize))
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -1481,6 +1741,61 @@ private fun shareCurrentLocation(context: android.content.Context) {
 }
 
 @Composable
+fun SmokeEffect() {
+    val infiniteTransition = rememberInfiniteTransition(label = "smoke")
+    
+    // Увеличили прозрачность (alpha) для лучшей видимости
+    val smokeParticles = listOf(
+        SmokeParticleData(duration = 8000, delay = 0, size = 400f, alpha = 0.2f),
+        SmokeParticleData(duration = 11000, delay = 2000, size = 550f, alpha = 0.15f),
+        SmokeParticleData(duration = 7000, delay = 1000, size = 450f, alpha = 0.18f)
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        smokeParticles.forEach { data ->
+            val progress by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = data.duration, delayMillis = data.delay, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "smokeProgress"
+            )
+
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val width = size.width
+                val height = size.height
+                
+                // Дым плывет по более широкой траектории
+                val x = -data.size + (width + data.size * 2) * progress
+                val y = height * 0.9f - (height * 0.7f * progress)
+                
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.LightGray.copy(alpha = data.alpha),
+                            Color.Transparent
+                        ),
+                        center = Offset(x, y),
+                        radius = data.size
+                    ),
+                    center = Offset(x, y),
+                    radius = data.size
+                )
+            }
+        }
+    }
+}
+
+data class SmokeParticleData(
+    val duration: Int,
+    val delay: Int,
+    val size: Float,
+    val alpha: Float
+)
+
+@Composable
 fun MyCheckboxScreen(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
     Row(
         modifier = Modifier.padding(vertical = 2.dp),
@@ -1498,42 +1813,6 @@ fun MyCheckboxScreen(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, lab
     }
 }
 
-@Composable
-fun MyCheckboxScreenSpring(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
-    Row(
-        modifier = Modifier.padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Checkbox(
-            checked = isChecked,
-            onCheckedChange = onCheckedChange
-        )
-        Text(
-            text = label,
-            modifier = Modifier.padding(start = 2.dp),
-            fontSize = 12.sp
-        )
-    }
-}
-
-@Composable
-fun MyCheckboxScreenCompact(isChecked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 4.dp)
-    ) {
-        Checkbox(
-            checked = isChecked,
-            onCheckedChange = onCheckedChange,
-            modifier = Modifier.padding(0.dp)
-        )
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            modifier = Modifier.padding(start = 2.dp)
-        )
-    }
-}
 
 @Composable
 fun AutomotiveGaugeField(
@@ -1546,37 +1825,57 @@ fun AutomotiveGaugeField(
     val isReadOnly = isTripStarted || field.id == "max_speed" || field.id == "trip_km" || field.id == "current_speed_field"
     val baseFontSize = if (isNarrow) 16.sp else 18.sp
     
-    // Цвет дуги зависит от типа поля (например, топливо - синее, скорость - оранжевая)
+    // Определение максимального значения для каждого типа прибора для расчета дуги
+    val maxValue = when (field.id) {
+        "current_speed_field", "max_speed" -> 220f // Макс. скорость 220 км/ч
+        "fuel" -> 200f // Макс. топливо 200 литров
+        "fuelStandart" -> 54f // Макс. норма расхода 54 л/100км
+        "trip_km" -> 1000f // Макс. для трипа в рамках шкалы
+        "km" -> 1000f // Для одометра используем остаток от 1000 для анимации
+        else -> 100f
+    }
+
+    // Расчет прогресса (нормализация 0.0 - 1.0)
+    val progress = try {
+        val value = field.value.replace(",", ".").toFloatOrNull() ?: 0f
+        if (field.id == "km") {
+            (value % 1000f) / 1000f // Для одометра показываем прогресс текущей тысячи
+        } else {
+            (value / maxValue).coerceIn(0f, 1f)
+        }
+    } catch (e: Exception) { 0f }
+
+    // Цвет дуги зависит от типа поля
     val gaugeColor = when (field.id) {
-        "fuel" -> Color(0xFF2196F3)
-        "current_speed_field" -> Color(0xFFFF9800)
+        "fuel" -> Color(0xFF2196F3) // Голубой для топлива
+        "current_speed_field", "max_speed" -> Color(0xFFFF9800) // Оранжевый для скорости
+        "fuelStandart" -> Color(0xFF4CAF50) // Зеленый для экономичности
         else -> MaterialTheme.colorScheme.primary
     }
 
     Box(
         modifier = modifier
-            .padding(vertical = 4.dp)
+            .padding(vertical = 2.dp)
             .fillMaxWidth()
-            .height(70.dp),
+            .height(60.dp),
         contentAlignment = Alignment.Center
     ) {
         // Фоновая дуга "прибора"
         Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             val strokeWidth = 3.dp.toPx()
             drawArc(
-                color = gaugeColor.copy(alpha = 0.2f),
+                color = gaugeColor.copy(alpha = 0.15f),
                 startAngle = 150f,
                 sweepAngle = 240f,
                 useCenter = false,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
             )
             
-            // "Заполненная" часть дуги (для топлива или скорости можно сделать расчет sweepAngle)
-            val progress = try { field.value.toFloat() / 100f } catch (e: Exception) { 0.5f }
+            // "Заполненная" часть дуги на основе прогресса
             drawArc(
                 color = gaugeColor,
                 startAngle = 150f,
-                sweepAngle = (240f * progress.coerceIn(0f, 1f)),
+                sweepAngle = (240f * progress),
                 useCenter = false,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
             )
@@ -1625,10 +1924,9 @@ fun PreviewMainLocationContentStarted() {
             isTripStarted = true,
             isRussian = true,
             compassHeading = 0f,
-            onLanguageToggle = {},
+            onSettingsClick = {},
             onFieldChange = { _, _ -> },
-            onHistoryClick = {},
-            onInstructionClick = {},
+            onExitClick = {},
             onStartClick = {},
             onStopClick = {},
         )
@@ -1650,10 +1948,9 @@ fun PreviewMainLocationContentStopped() {
             isTripStarted = false,
             isRussian = false,
             compassHeading = 0f,
-            onLanguageToggle = {},
+            onSettingsClick = {},
             onFieldChange = { _, _ -> },
-            onHistoryClick = {},
-            onInstructionClick = {},
+            onExitClick = {},
             onStartClick = {},
             onStopClick = {}
         )
@@ -1675,10 +1972,9 @@ fun PreviewMainLocationContentLandscape() {
             isTripStarted = true,
             isRussian = true,
             compassHeading = 45f,
-            onLanguageToggle = {},
+            onSettingsClick = {},
             onFieldChange = { _, _ -> },
-            onHistoryClick = {},
-            onInstructionClick = {},
+            onExitClick = {},
             onStartClick = {},
             onStopClick = {}
         )

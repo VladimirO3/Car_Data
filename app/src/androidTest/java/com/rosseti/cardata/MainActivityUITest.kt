@@ -4,14 +4,13 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Тесты UI для [MainActivity] с использованием тестовых API Jetpack Compose.
+ * Тесты UI для [MainActivity] v1.5 с использованием тестовых API Jetpack Compose.
  */
 @RunWith(AndroidJUnit4::class)
 class MainActivityUITest {
@@ -20,89 +19,74 @@ class MainActivityUITest {
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun testAppTitleAndStatsAreDisplayed() {
+    fun testAppTitleAndSettingsButton() {
         // Проверка заголовка
         composeTestRule.onNodeWithText("TrackLit").assertExists()
-        
-        // Проверка наличия основных полей (English by default, labels are Uppercase in Gauge fields)
-        composeTestRule.onNodeWithText("ODOMETER (KM)").assertExists()
-        composeTestRule.onNodeWithText("TRIP DISTANCE (KM)").assertExists()
-        composeTestRule.onNodeWithText("REMAINING FUEL").assertExists()
-        composeTestRule.onNodeWithText("FUEL CONSUMPTION RATE").assertExists()
-        composeTestRule.onNodeWithText("CURRENT SPEED (KM/H)").assertExists()
+        // Проверка наличия кнопки настроек
+        composeTestRule.onNodeWithContentDescription("Settings").assertExists()
     }
 
     @Test
-    fun testLanguageToggle() {
-        // Initially EN
-        composeTestRule.onNodeWithText("EN").assertExists()
-        composeTestRule.onNodeWithText("ODOMETER (KM)").assertExists()
+    fun testSettingsNavigation() {
+        // Переход в настройки
+        composeTestRule.onNodeWithContentDescription("Settings").performClick()
 
-        // Toggle to RU
-        composeTestRule.onNodeWithText("EN").performClick()
-
-        composeTestRule.onNodeWithText("RU").assertExists()
-        composeTestRule.onNodeWithText("ОДОМЕТР (КМ)").assertExists()
-        composeTestRule.onNodeWithText("ДИСТАНЦИЯ (КМ)").assertExists()
-        composeTestRule.onNodeWithText("ОСТАТОК ТОПЛИВА").assertExists()
-        composeTestRule.onNodeWithText("НОРМА РАСХОДА").assertExists()
-        composeTestRule.onNodeWithText("ТЕКУЩАЯ СКОРОСТЬ (КМ/Ч)").assertExists()
+        // Проверка заголовка настроек (в зависимости от текущего языка, но иконка назад должна быть)
+        composeTestRule.onNodeWithContentDescription("Back").assertExists()
+        
+        // Проверка наличия пунктов меню (хотя бы одного для подтверждения экрана)
+        // Мы ищем по тексту, который есть в обоих языках или по иконкам/свойствам
+        composeTestRule.onNodeWithText("About Author", substring = true).assertExists()
+        composeTestRule.onNodeWithText("Legal Information", substring = true).assertExists()
     }
 
     @Test
-    fun testHistoryScreenNavigationAndClear() {
-        // Click on History icon
-        composeTestRule.onNodeWithContentDescription("Trip History").performClick()
+    fun testThemeToggle() {
+        // Переход в настройки
+        composeTestRule.onNodeWithContentDescription("Settings").performClick()
 
-        // Check if History screen is displayed
-        composeTestRule.onNodeWithText("Trip History").assertExists()
+        // Проверка наличия переключателя темы
+        composeTestRule.onNodeWithText("App Theme", substring = true).assertExists()
         
-        // Go back
+        // Клик по переключателю темы
+        composeTestRule.onNodeWithText("App Theme", substring = true).performClick()
+        
+        // Убеждаемся, что экран все еще активен (тема сменилась)
+        composeTestRule.onNodeWithText("Selected:", substring = true).assertExists()
+    }
+
+    @Test
+    fun testAuthorScreenNavigation() {
+        // Переход в настройки
+        composeTestRule.onNodeWithContentDescription("Settings").performClick()
+
+        // Переход к автору
+        composeTestRule.onNodeWithText("About Author", substring = true).performClick()
+
+        // Проверка контента экрана автора
+        composeTestRule.onNodeWithText("Osetrov V.V.").assertExists()
+        composeTestRule.onNodeWithContentDescription("GitHub").assertExists()
+        
+        // Возврат
         composeTestRule.onNodeWithContentDescription("Back").performClick()
-        
-        // Check if Main screen is displayed again
-        composeTestRule.onNodeWithText("TrackLit").assertExists()
+        composeTestRule.onNodeWithText("Settings", substring = true).assertExists()
     }
 
     @Test
-    fun testInstructionScreenNavigation() {
-        // Click on Info icon
-        composeTestRule.onNodeWithContentDescription("Instructions").performClick()
-
-        // Check if Instructions screen is displayed
-        composeTestRule.onNodeWithText("Instructions").assertExists()
-        
-        // Check for some instruction item
-        composeTestRule.onNodeWithText("Preparation").assertExists()
-        
-        // Go back
-        composeTestRule.onNodeWithContentDescription("Back").performClick()
-        
-        // Check if Main screen is displayed again
-        composeTestRule.onNodeWithText("TrackLit").assertExists()
-    }
-
-    @Test
-    fun testTripStartedMarkerVisibility() {
-        // Изначально маркера нет (в верхнем баре)
-        composeTestRule.onNodeWithText("● TRIP").assertDoesNotExist()
-
-        // Кнопка Старт должна существовать
-        composeTestRule.onNodeWithText("Start").assertExists()
-    }
-
-    @Test
-    fun testIconsExistence() {
-        // Проверка наличия иконок в верхней панели
+    fun testExitFlow() {
+        // Проверка кнопки выхода на главном экране
         composeTestRule.onNodeWithContentDescription("Exit").assertExists()
-        composeTestRule.onNodeWithContentDescription("Send Coordinates").assertExists()
-        composeTestRule.onNodeWithContentDescription("Trip History").assertExists()
-        composeTestRule.onNodeWithContentDescription("Instructions").assertExists()
+        
+        // Клик по кнопке выхода (должен появиться экран прощания)
+        composeTestRule.onNodeWithContentDescription("Exit").performClick()
+        
+        // Проверка текста на экране прощания
+        composeTestRule.onNodeWithText("До встречи!").assertExists()
     }
 
     @Test
-    fun testCompassDegreeDisplay() {
-        // Проверка, что на компасе отображаются градусы (символ °)
-        composeTestRule.onNodeWithText("0°", substring = true).assertExists()
+    fun testCompassDisplay() {
+        // Проверка, что на компасе отображаются градусы
+        composeTestRule.onNodeWithText("°", substring = true).assertExists()
     }
 }

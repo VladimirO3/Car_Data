@@ -53,9 +53,27 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     val fields = mutableStateListOf<NumericField>()
 
     /**
+     * Текущий режим темы (0 - Система, 1 - Светлая, 2 - Темная).
+     */
+    var themeMode = mutableStateOf(repository.getThemeMode())
+        private set
+
+    /**
+     * Текущий режим языка (0 - Система, 1 - RU, 2 - EN).
+     */
+    var languageMode = mutableStateOf(repository.getLanguageMode())
+        private set
+
+    /**
      * Состояние языка интерфейса (true - русский, false - английский).
      */
-    var isRussian = mutableStateOf<Boolean>(repository.getIsRussian())
+    var isRussian = mutableStateOf<Boolean>(
+        if (repository.getLanguageMode() == 0) {
+            Locale.getDefault().language == "ru"
+        } else {
+            repository.getLanguageMode() == 1
+        }
+    )
 
     /**
      * Состояние режима "Весна".
@@ -86,11 +104,27 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     }
 
     /**
-     * Переключение языка интерфейса.
+     * Переключение режима темы (циклично: Система -> Светлая -> Темная).
+     */
+    fun toggleTheme() {
+        themeMode.value = (themeMode.value + 1) % 3
+        repository.saveThemeMode(themeMode.value)
+    }
+
+    /**
+     * Переключение языка интерфейса (циклично: Система -> RU -> EN).
+     * Автоматически обновляет состояние [isRussian] и перезагружает метки полей.
      */
     fun toggleLanguage() {
-        isRussian.value = !isRussian.value
-        repository.saveIsRussian(isRussian.value)
+        languageMode.value = (languageMode.value + 1) % 3
+        repository.saveLanguageMode(languageMode.value)
+        
+        isRussian.value = if (languageMode.value == 0) {
+            Locale.getDefault().language == "ru"
+        } else {
+            languageMode.value == 1
+        }
+
         loadFields()
     }
 
@@ -288,6 +322,7 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
 
     /**
      * Обновляет внутреннее состояние на основе пройденного расстояния.
+     * Также обновляет текущую скорость и сохраняет рекорд максимальной скорости.
      */
     private fun updateStateFromDistance(currentDist: Float) {
         totalDistance.floatValue = currentDist

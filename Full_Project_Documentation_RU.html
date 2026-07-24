@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TrackLit - Полная техническая документация</title>
+    <title>TrackLit - Полная техническая документация v1.5</title>
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -51,136 +51,91 @@
 <body>
 
     <div class="sidebar">
-        <h2>Документация TrackLit</h2>
+        <h2>TrackLit v1.5</h2>
         <a href="#overview">1. Обзор проекта</a>
         <a href="#architecture">2. Архитектура (MVVM)</a>
-        <a href="#localization">3. Локализация (English)</a>
-        <a href="#main-activity">4. MainActivity</a>
+        <a href="#new-features">3. Новое в v1.5</a>
+        <a href="#main-activity">4. MainActivity & Навигация</a>
         <a href="#viewmodel">5. MainViewModel</a>
-        <a href="#location-service">6. LocationService</a>
-        <a href="#repository">7. Репозиторий и Данные</a>
-        <a href="#instruction">8. Инструкция пользователя</a>
-        <a href="#logger">9. AppLogger и диагностика</a>
-        <a href="#stability">10. Стабильность и Безопасность</a>
+        <a href="#settings">6. Настройки и Темы</a>
+        <a href="#location-logic">7. GPS и Навигация</a>
+        <a href="#stability">8. Стабильность</a>
     </div>
 
     <div class="content">
         <h1>Техническая документация TrackLit</h1>
-        <p>Версия: 1.2.2026 | Автор: Osetrov.V.V. | Язык документа: Русский | Обновлено: 2026</p>
+        <p>Версия: 1.5.2026 | Автор: Osetrov.V.V. | Обновлено: 2026</p>
 
         <section id="overview">
             <h2>1. Обзор проекта</h2>
-            <p><strong>TrackLit</strong> — это профессиональный GPS-трекер рейсов для Android. Приложение автоматизирует учет пробега и рассчитывает расход топлива в реальном времени. В версии 1.2 реализован новый «автомобильный» интерфейс с имитацией аналоговых датчиков.</p>
+            <p><strong>TrackLit</strong> — это профессиональный GPS-трекер для водителей. В версии 1.5 приложение получило значительное обновление интерфейса, новую систему настроек и улучшенную производительность за счет перехода на внешние навигационные системы.</p>
             <ul class="feature-list">
-                <li>Интерфейс в стиле приборной панели автомобиля с графическими дугами (Gauges).</li>
-                <li>Единая круглая кнопка управления <b>СТАРТ / СТОП</b>.</li>
-                <li>Интегрированные <b>Яндекс Карты</b> с поддержкой оффлайн-режима и навигацией свайпами (Tabs).</li>
-                <li>Высокая чувствительность GPS (фильтрация дрейфа < 3м).</li>
-                <li>Интегрированный <b>цифровой компас</b> с расчетом азимута возврата.</li>
-                <li>Функция мгновенной отправки текущих координат через <b>Яндекс Источник</b>.</li>
-                <li>История рейсов с возможностью <b>выборочного удаления</b> записей.</li>
+                <li><b>Интерфейс</b>: Динамические приборы (Gauges) с анимацией заполнения.</li>
+                <li><b>Анимация дыма</b>: Визуальный эффект движения при активном рейсе.</li>
+                <li><b>Свайп-навигация</b>: Быстрый доступ к картам через жесты.</li>
+                <li><b>Мультиязычность</b>: Поддержка RU/EN и системного языка.</li>
+                <li><b>Темы оформления</b>: Поддержка Светлой, Темной и Системной тем.</li>
             </ul>
         </section>
 
-        <section id="architecture">
-            <h2>2. Архитектура</h2>
-            <p>Проект следует паттерну <strong>MVVM (Model-View-ViewModel)</strong> с использованием <strong>Jetpack Compose</strong>.</p>
+        <section id="new-features">
+            <h2>3. Новое в v1.5</h2>
             <table>
-                <tr><th>Слой</th><th>Технология</th><th>Назначение</th></tr>
-                <tr><td><strong>UI (Gauges)</strong></td><td>Jetpack Compose + Canvas</td><td>Кастомная отрисовка датчиков и навигация через HorizontalPager.</td></tr>
-                <tr><td><strong>Logic</strong></td><td>Kotlin ViewModel</td><td>Управление состоянием, расчеты и работа с историей.</td></tr>
-                <tr><td><strong>Maps</strong></td><td>WebView + Yandex Maps</td><td>Отображение пробок и местоположения в реальном времени.</td></tr>
-                <tr><td><strong>Service</strong></td><td>Foreground Service</td><td>Бесперебойное GPS-отслеживание при свернутом приложении.</td></tr>
-                <tr><td><strong>Storage</strong></td><td>SharedPreferences</td><td>Постоянное хранение данных и истории поездок.</td></tr>
+                <tr><th>Функция</th><th>Описание</th></tr>
+                <tr><td><strong>Settings Screen</strong></td><td>Централизованное меню для управления всеми параметрами приложения.</td></tr>
+                <tr><td><strong>Smoke Animation</strong></td><td>Кастомная анимация частиц дыма на Canvas при включенном режиме «СТАРТ».</td></tr>
+                <tr><td><strong>Goodbye Screen</strong></td><td>Экран прощания с анимированным смайлом и 3-секундной задержкой перед выходом.</td></tr>
+                <tr><td><strong>External Maps</strong></td><td>Полный отказ от WebView в пользу нативных приложений (Яндекс/Google Maps) для скорости.</td></tr>
             </table>
-        </section>
-
-        <section id="localization">
-            <h2>3. Локализация</h2>
-            <p>Приложение поддерживает <strong>Русский</strong> и <strong>Английский</strong> языки:</p>
-            <ul>
-                <li>Метки датчиков адаптируются автоматически (ODOMETER / ОДОМЕТР и т.д.).</li>
-                <li>Все системные уведомления и диалоги полностью локализованы.</li>
-                <li>Формат координат и ссылок адаптирован для использования в СНГ (Яндекс Карты).</li>
-            </ul>
         </section>
 
         <section id="main-activity">
             <span class="tag tag-ui">UI Layer</span>
-            <h2>4. MainActivity</h2>
+            <h2>4. MainActivity & Навигация</h2>
             <table class="method-table">
-                <tr><td>AutomotiveGaugeField()</td><td>Компонент отрисовки датчика со шкалой и полем ввода.</td></tr>
-                <tr><td>MapScreen()</td><td>Интеграция WebView с Яндекс Картами, оптимизация памяти и кэша.</td></tr>
-                <tr><td>shareCurrentLocation()</td><td>Формирование и отправка ссылки <i>yandex.ru/maps</i> с координатами.</td></tr>
-                <tr><td>HorizontalPager</td><td>Обеспечивает переключение между главной панелью и картой свайпом.</td></tr>
+                <tr><td>MainLocationScreen</td><td>Корневой навигатор, управляющий переключением между Main/Settings/History.</td></tr>
+                <tr><td>SmokeEffect()</td><td>Генератор анимированных частиц дыма с использованием InfiniteTransition.</td></tr>
+                <tr><td>GoodbyeScreen()</td><td>Canvas-анимация грустного лица при закрытии приложения.</td></tr>
+                <tr><td>detectHorizontalDragGestures</td><td>Слушатель свайпов для запуска внешнего навигатора.</td></tr>
             </table>
         </section>
 
         <section id="viewmodel">
             <span class="tag tag-logic">Business Logic</span>
             <h2>5. MainViewModel</h2>
-            <table class="method-table">
-                <tr><td>calculateRemainingFuel()</td><td>Расчет расхода на основе пройденного пути и нормы.</td></tr>
-                <tr><td>deleteHistoryItem()</td><td>Метод для удаления конкретной записи из истории рейсов.</td></tr>
-                <tr><td>onStartTrip()</td><td>Блокировка ввода, фиксация одометра и топлива на старте.</td></tr>
-                <tr><td>onStopTrip()</td><td>Формирование записи и сохранение финальных показателей.</td></tr>
-            </table>
-        </section>
-
-        <section id="location-service">
-            <span class="tag tag-service">Background Service</span>
-            <h2>6. LocationService</h2>
-            <p>Foreground Service с типом "location" для Android 14+.</p>
+            <p>ViewModel расширена для поддержки новых режимов:</p>
             <ul>
-                <li>Обновление уведомления: Одометр, путь, скорость и курс.</li>
-                <li>Фильтрация помех и расчет дистанции в реальном времени.</li>
-                <li>Автоматическая остановка при критическом отключении GPS.</li>
+                <li><b>languageMode</b>: Хранит выбор языка (0-Система, 1-RU, 2-EN).</li>
+                <li><b>themeMode</b>: Управляет визуальной темой (0-Система, 1-Light, 2-Dark).</li>
+                <li><b>toggleTheme() / toggleLanguage()</b>: Циклическое переключение настроек.</li>
             </ul>
         </section>
 
-        <section id="repository">
-            <span class="tag tag-data">Storage</span>
-            <h2>7. SettingsRepository</h2>
-            <p>Управляет SharedPreferences:</p>
+        <section id="settings">
+            <span class="tag tag-data">Repository</span>
+            <h2>6. SettingsRepository</h2>
+            <p>Обновлен для хранения новых ключей:</p>
             <ul>
-                <li>Хранение истории в формате строки с разделителями.</li>
-                <li><b>deleteTripRecord()</b>: Парсинг и перезапись истории при удалении элемента.</li>
-                <li>Сохранение состояния "Trip Started" для устойчивости к перезагрузкам.</li>
+                <li><code class="code">language_mode</code>: Целое число (режим локализации).</li>
+                <li><code class="code">theme_mode</code>: Целое число (режим оформления).</li>
+                <li><code class="code">last_max_speed</code>: Хранение рекорда скорости текущего рейса.</li>
             </ul>
         </section>
 
-        <section id="instruction">
-            <span class="tag tag-ui">UI Layer</span>
-            <h2>8. Инструкция пользователя</h2>
-            <ul>
-                <li><b>Подготовка</b>: Ввод начальных данных в "приборы".</li>
-                <li><b>Навигация</b>: Свайп в любую сторону для открытия карты.</li>
-                <li><b>Управление</b>: Центральная красная кнопка для запуска/остановки.</li>
-                <li><b>Карты</b>: Кнопка "Локация" на карте для перехода в оффлайн-навигатор Яндекса.</li>
-            </ul>
-        </section>
-
-        <section id="logger">
-            <span class="tag tag-data">Diagnostics</span>
-            <h2>9. AppLogger и диагностика</h2>
-            <ul>
-                <li>Логирование каждой GPS-точки и системных событий.</li>
-                <li>Кнопка "Share" в истории для отправки отчетов.</li>
-                <li>Автоматическая очистка старых логов.</li>
-            </ul>
-        </section>
-
-        <section id="stability">
-            <h2>10. Стабильность</h2>
-            <ul>
-                <li><b>Защита WebView</b>: Отключен Autofill для предотвращения NPE (крашей Chromium).</li>
-                <li><b>Экономия ресурсов</b>: Карта обновляется только при перемещении > 50м.</li>
-                <li><b>Keep Screen On</b>: Экран не гаснет, пока открыта вкладка навигатора.</li>
-            </ul>
+        <section id="location-logic">
+            <span class="tag tag-service">Navigation</span>
+            <h2>7. GPS и Внешняя Навигация</h2>
+            <p>Метод <code class="code">openExternalNavigator()</code> реализует следующую логику:</p>
+            <ol>
+                <li>Получение текущих координат через FusedLocationProvider.</li>
+                <li>Попытка запуска <b>Яндекс Навигатора</b>.</li>
+                <li>При неудаче — запуск <b>Яндекс Карт</b>.</li>
+                <li>В крайнем случае — запуск <b>Google Maps</b>.</li>
+            </ol>
         </section>
 
         <footer>
-            <p>TrackLit &copy; 2026. Разработано для профессионального учета рейсов.</p>
+            <p>TrackLit Documentation v1.5.2026 &copy; Osetrov V.V. Все права защищены.</p>
         </footer>
     </div>
 
