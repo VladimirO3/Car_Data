@@ -516,12 +516,12 @@ fun WelcomeScreen(onFinished: () -> Unit) {
             modifier = Modifier.padding(24.dp).alpha(alpha)
         ) {
             Icon(
-                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
                 contentDescription = null,
-                modifier = Modifier.size(120.dp),
+                modifier = Modifier.size(180.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Добро пожаловать!",
                 style = MaterialTheme.typography.headlineMedium,
@@ -1427,7 +1427,7 @@ fun MainLocationContent(
                     .padding(paddingValues)
             ) {
                 Icon(
-                    painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
                     contentDescription = null,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
