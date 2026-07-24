@@ -516,7 +516,7 @@ fun WelcomeScreen(onFinished: () -> Unit) {
             modifier = Modifier.padding(24.dp).alpha(alpha)
         ) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                 contentDescription = null,
                 modifier = Modifier.size(120.dp),
                 tint = MaterialTheme.colorScheme.primary
@@ -898,7 +898,7 @@ fun AuthorScreen(isRussian: Boolean, onBack: () -> Unit) {
                 ) {
                     // Telegram Link
                     FilledTonalIconButton(onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/osetrov_v"))
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/BBC2331"))
                         context.startActivity(intent)
                     }) {
                         Icon(
@@ -924,7 +924,7 @@ fun AuthorScreen(isRussian: Boolean, onBack: () -> Unit) {
                     // Email Link
                     FilledTonalIconButton(onClick = {
                         val intent = Intent(Intent.ACTION_SENDTO).apply {
-                            data = android.net.Uri.parse("mailto:osetrov.vv@gmail.com")
+                            data = android.net.Uri.parse("mailto:verso0100@gmail.com")
                             putExtra(Intent.EXTRA_SUBJECT, "TrackLit Feedback")
                         }
                         context.startActivity(intent)
@@ -1427,7 +1427,7 @@ fun MainLocationContent(
                     .padding(paddingValues)
             ) {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                    painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                     contentDescription = null,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
