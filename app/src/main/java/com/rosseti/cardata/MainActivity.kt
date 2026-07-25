@@ -106,6 +106,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -392,7 +393,7 @@ fun MainLocationScreen(
     onStop: () -> Unit
 ) {
     val context = LocalContext.current
-    var currentScreen by remember { mutableStateOf(Screen.WELCOME) }
+    var currentScreen by rememberSaveable { mutableStateOf(Screen.WELCOME) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (currentScreen) {
@@ -1437,10 +1438,10 @@ fun MainLocationContent(
                 )
 
                 if (isLandscape) {
-                    Column(modifier = Modifier.fillMaxSize().padding(5.dp)) {
+                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            modifier = Modifier.fillMaxSize().padding(end = 30.dp),
+                            horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(
@@ -1459,7 +1460,7 @@ fun MainLocationContent(
                                                     onValueChange = { onFieldChange(index, it) },
                                                     isTripStarted = isTripStarted,
                                                     isNarrow = isNarrowScreen,
-                                                    modifier = Modifier.widthIn(max = 240.dp).fillMaxWidth(0.9f)
+                                                    modifier = Modifier.widthIn(max = 260.dp).fillMaxWidth(0.9f)
                                                 )
                                             }
                                         }
@@ -1474,32 +1475,28 @@ fun MainLocationContent(
                             ) {
                                 CompassView(compassHeading, isRussian)
                             }
+                            
+                            // Пустая колонка для балансировки центра, если нужно, 
+                            // но Row с Arrangement.Center и весами сделает все симметрично
+                        }
 
-                            Column(
-                                modifier = Modifier.weight(1.2f).verticalScroll(scrollStateRight),
-                                verticalArrangement = Arrangement.Top,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Button(
-                                    onClick = if (isTripStarted) onStopClick else onStartClick,
-                                    modifier = Modifier.size(70.dp),
-                                    shape = CircleShape,
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                                ) {
-                                    Text(
-                                        text = if (isTripStarted) stopLabel else startLabel,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-                            }
+                        Button(
+                            onClick = if (isTripStarted) onStopClick else onStartClick,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(75.dp),
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = if (isTripStarted) stopLabel else startLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
                 } else {
@@ -1541,7 +1538,7 @@ fun MainLocationContent(
                         val compassSize = if (isTallScreen) 140.dp else if (isNarrowScreen) 110.dp else 130.dp
                         CompassView(compassHeading, isRussian, modifier = Modifier.size(compassSize))
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(75.dp))
                         Text(
                             text = copyrightLabel,
                             modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),

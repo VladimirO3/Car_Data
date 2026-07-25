@@ -162,9 +162,10 @@ class LocationService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        AppLogger.d(this, "Service onStartCommand - Запуск обновления координат")
-        // Повторный вызов на случай, если сервис был перезапущен или startForegroundService был вызван для уже запущенного сервиса
+        // ПЕРВЫМ ДЕЛОМ вызываем startForegroundServiceSafe, чтобы избежать ForegroundServiceDidNotStartInTimeException
         startForegroundServiceSafe()
+        
+        AppLogger.d(this, "Service onStartCommand - Запуск обновления координат")
         startLocationUpdates()
         return START_STICKY
     }
@@ -185,45 +186,66 @@ class LocationService : Service(), SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun startForegroundServiceSafe() {
-        val isRussian = repository.getIsRussian()
-        val channelName = if (isRussian) "Отслеживание GPS" else "GPS Tracking"
-        val title = if (isRussian) "TrackLit: Поездка активна" else "TrackLit: Trip Active"
-        val text = if (isRussian) "Идет отслеживание поездки..." else "Trip tracking in progress..."
-
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            channelName,
-            NotificationManager.IMPORTANCE_LOW
-        )
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
-
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-
         try {
+            // Инициализируем репозиторий, если он еще не инициализирован (на случай вызова до onCreate)
+            if (!::repository.isInitialized) {
+                repository = SettingsRepository(applicationContext)
+            }
+            
+            val isRussian = repository.getIsRussian()
+            val channelName = if (isRussian) "Отслеживание GPS" else "GPS Tracking"
+            val title = if (isRussian) "TrackLit: Поездка активна" else "TrackLit: Trip Active"
+            val text = if (isRussian) "Идет отслеживание поездки..." else "Trip tracking in progress..."
+
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                channelName,
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = if (isRussian) "Используется для работы GPS в фоновом режиме" else "Used for background GPS tracking"
+                setShowBadge(false)
+            }
+            
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+                .build()
+
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-            AppLogger.d(this, "startForeground вызван успешно")
+            Log.d("LocationService", "startForeground executed successfully")
         } catch (e: Exception) {
-            AppLogger.e(this, "Ошибка при вызове startForeground", e)
+            Log.e("LocationService", "Error in startForegroundServiceSafe", e)
+            // В случае ошибки пытаемся запустить хотя бы с минимальными параметрами, 
+            // так как невызов startForeground приведет к крашу.
+            try {
+                val fallbackNotification = NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setContentTitle("TrackLit")
+                    .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                    .build()
+                startForeground(NOTIFICATION_ID, fallbackNotification)
+            } catch (e2: Exception) {
+                Log.e("LocationService", "Critical failure in fallback startForeground", e2)
+            }
         }
     }
 
