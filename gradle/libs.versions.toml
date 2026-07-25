@@ -22,6 +22,7 @@ firebaseBom = "34.15.0"
 playServicesAdsIdentifier = "18.3.0"
 navigationRuntimeKtx = "2.9.8"
 material = "1.14.0"
+tracer = "1.4.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -53,6 +54,9 @@ firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics
 firebase-config = { group = "com.google.firebase", name = "firebase-config" }
 androidx-navigation-runtime-ktx = { group = "androidx.navigation", name = "navigation-runtime-ktx", version.ref = "navigationRuntimeKtx" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+tracer-platform = { group = "ru.ok.tracer", name = "tracer-platform", version.ref = "tracer" }
+tracer-crash-report = { group = "ru.ok.tracer", name = "tracer-crash-report", version.ref = "tracer" }
+tracer-performance-metrics = { group = "ru.ok.tracer", name = "tracer-performance-metrics", version.ref = "tracer" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -61,3 +65,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlytics" }
+tracer = { id = "ru.ok.tracer", version.ref = "tracer" }

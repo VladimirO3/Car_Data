@@ -17,6 +17,7 @@
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <application
+        android:name=".TrackLitApp"
         android:largeHeap="true"
         android:hardwareAccelerated="true"
         android:allowBackup="true"

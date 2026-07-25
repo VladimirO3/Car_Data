@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.dokka)
     alias(libs.plugins.google.services)
     alias(libs.plugins.firebase.crashlytics)
+    alias(libs.plugins.tracer)
 }
 
 // Загрузка и инкремент версии вынесены на уровень скрипта для стабильности
@@ -92,6 +93,13 @@ android {
     buildToolsVersion = "36.1.0"
 }
 
+tracer {
+    create("defaultConfig") {
+        appToken = "T8gPpMJPMcvO0CTi2Xv1hAcfcHmwwuYjJu8ucdfrvikb"
+        uploadMapping = true
+    }
+}
+
 dependencies {
     implementation(libs.androidx.navigation.runtime.ktx)
 	implementation(libs.firebase.config)
@@ -119,7 +127,17 @@ dependencies {
     // Accompanist
     implementation("com.google.accompanist:accompanist-pager:0.36.0")
     implementation("com.google.accompanist:accompanist-pager-indicators:0.36.0")
+
+    // MyTracker SDK
+    implementation("com.my.tracker:mytracker-sdk:3.5.0")
+    implementation("com.android.installreferrer:installreferrer:2.2")
+    implementation("com.google.android.gms:play-services-appset:16.1.0")
     
+    // Tracer SDK
+    implementation(platform(libs.tracer.platform))
+    implementation(libs.tracer.crash.report)
+    implementation(libs.tracer.performance.metrics)
+
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)
