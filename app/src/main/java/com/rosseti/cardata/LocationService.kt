@@ -44,12 +44,15 @@ class LocationService : Service(), SensorEventListener {
     }
 
     override fun onCreate() {
-        // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
-        // Вызываем до любых логов или инициализаций
-        repository = SettingsRepository(applicationContext)
-        startForegroundServiceSafe()
-
         super.onCreate()
+        // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
+        // Сначала запускаем с минимальными параметрами, затем обновим
+        startForegroundServiceSafe()
+        
+        if (!::repository.isInitialized) {
+            repository = SettingsRepository(applicationContext)
+        }
+        
         AppLogger.d(this, "Service onCreate - Инициализация службы")
         
         // Инициализация датчиков для компаса в уведомлении
@@ -106,10 +109,15 @@ class LocationService : Service(), SensorEventListener {
                 }
             }
         }
+        
+        // После инициализации всех компонентов обновляем уведомление на корректное
+        updateNotification(0f, repository.getTotalDistance())
     }
 
     @SuppressLint("MissingPermission")
     private fun updateNotification(speedKmh: Float, totalDistanceMeters: Float) {
+        if (!::repository.isInitialized) return
+        
         val traveledKm = totalDistanceMeters / 1000f
         val baseKm = repository.getFieldValue("km")
         val totalOdometer = baseKm + traveledKm
@@ -145,10 +153,14 @@ class LocationService : Service(), SensorEventListener {
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
 
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, notification)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun getDirectionString(bearing: Float, isRussian: Boolean): String {
@@ -176,7 +188,7 @@ class LocationService : Service(), SensorEventListener {
             SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
             val orientationValues = FloatArray(3)
             SensorManager.getOrientation(rotationMatrix, orientationValues)
-            val azimuth = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
+            val azimuth = Math.toDegrees(orientationValues[0].toDouble()).toInt().toFloat()
             if (!azimuth.isNaN()) {
                 currentHeading = -azimuth
             }
@@ -187,26 +199,14 @@ class LocationService : Service(), SensorEventListener {
 
     private fun startForegroundServiceSafe() {
         try {
-            // Инициализируем репозиторий, если он еще не инициализирован (на случай вызова до onCreate)
-            if (!::repository.isInitialized) {
-                repository = SettingsRepository(applicationContext)
-            }
-            
-            val isRussian = repository.getIsRussian()
-            val channelName = if (isRussian) "Отслеживание GPS" else "GPS Tracking"
-            val title = if (isRussian) "TrackLit: Поездка активна" else "TrackLit: Trip Active"
-            val text = if (isRussian) "Идет отслеживание поездки..." else "Trip tracking in progress..."
-
+            val manager = getSystemService(NotificationManager::class.java)
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                channelName,
+                "GPS Tracking",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = if (isRussian) "Используется для работы GPS в фоновом режиме" else "Used for background GPS tracking"
                 setShowBadge(false)
             }
-            
-            val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
 
             val intent = Intent(this, MainActivity::class.java).apply {
@@ -217,9 +217,10 @@ class LocationService : Service(), SensorEventListener {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
+            // Используем фиксированные строки для максимально быстрого запуска без обращения к SharedPreferences
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(title)
-                .setContentText(text)
+                .setContentTitle("TrackLit")
+                .setContentText("GPS Tracking active")
                 .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
@@ -232,22 +233,16 @@ class LocationService : Service(), SensorEventListener {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-            Log.d("LocationService", "startForeground executed successfully")
         } catch (e: Exception) {
-            Log.e("LocationService", "Error in startForegroundServiceSafe", e)
-            // В случае ошибки пытаемся запустить хотя бы с минимальными параметрами, 
-            // так как невызов startForeground приведет к крашу.
-            try {
-                val fallbackNotification = NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("TrackLit")
-                    .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-                    .build()
-                startForeground(NOTIFICATION_ID, fallbackNotification)
-            } catch (e2: Exception) {
-                Log.e("LocationService", "Critical failure in fallback startForeground", e2)
+            Log.e("LocationService", "Critical error in startForegroundServiceSafe", e)
+            // Не замалчиваем ошибку полностью, но пытаемся выжить
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S 
+                && e is android.app.ForegroundServiceStartNotAllowedException) {
+                AppLogger.e(this, "Foreground service start not allowed from background", e)
             }
         }
     }
+
 
     private fun startLocationUpdates() {
         Log.d("LocationService", "Requesting location updates")

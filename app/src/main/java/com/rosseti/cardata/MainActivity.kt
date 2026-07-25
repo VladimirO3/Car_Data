@@ -1538,7 +1538,7 @@ fun MainLocationContent(
                         val compassSize = if (isTallScreen) 140.dp else if (isNarrowScreen) 110.dp else 130.dp
                         CompassView(compassHeading, isRussian, modifier = Modifier.size(compassSize))
 
-                        Spacer(modifier = Modifier.height(75.dp))
+                        Spacer(modifier = Modifier.height(65.dp))
                         Text(
                             text = copyrightLabel,
                             modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
