@@ -96,7 +96,7 @@ android {
 tracer {
     create("defaultConfig") {
         appToken = "T8gPpMJPMcvO0CTi2Xv1hAcfcHmwwuYjJu8ucdfrvikb"
-        uploadMapping = true
+        uploadMapping = false
     }
 }
 

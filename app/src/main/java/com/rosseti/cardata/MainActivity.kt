@@ -138,6 +138,7 @@ import com.google.android.gms.location.Priority
 import com.rosseti.cardata.data.SettingsRepository
 import com.rosseti.cardata.model.NumericField
 import com.rosseti.cardata.ui.theme.CarDataTheme
+import kotlin.random.Random
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -395,7 +396,48 @@ fun MainLocationScreen(
     val context = LocalContext.current
     var currentScreen by rememberSaveable { mutableStateOf(Screen.WELCOME) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Список экранов для циклического перелистывания при незапущенном рейсе
+    val screenCycle = listOf(
+        Screen.MAIN,
+        Screen.SETTINGS,
+        Screen.HISTORY,
+        Screen.INSTRUCTION,
+        Screen.LEGAL,
+        Screen.AUTHOR
+    )
+    
+    val isTripStarted = viewModel.isTripStarted.value
+    var lastSwipeTime by remember { mutableLongStateOf(0L) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(currentScreen, isTripStarted) {
+                detectHorizontalDragGestures { _, dragAmount ->
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastSwipeTime < 500) return@detectHorizontalDragGestures
+                    
+                    if (Math.abs(dragAmount) > 60) {
+                        lastSwipeTime = currentTime
+                        
+                        if (isTripStarted && currentScreen == Screen.MAIN) {
+                            // Если рейс запущен и мы на главном экране — открываем навигатор
+                            openExternalNavigator(context)
+                        } else if (!isTripStarted) {
+                            // Если рейс НЕ запущен — перелистываем экраны по циклу
+                            val currentIndex = screenCycle.indexOf(currentScreen)
+                            if (currentIndex != -1) {
+                                if (dragAmount < 0) { // Свайп влево — следующий экран
+                                    currentScreen = screenCycle[(currentIndex + 1) % screenCycle.size]
+                                } else { // Свайп вправо — предыдущий экран
+                                    currentScreen = screenCycle[(currentIndex - 1 + screenCycle.size) % screenCycle.size]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+    ) {
         when (currentScreen) {
             Screen.WELCOME -> {
                 WelcomeScreen {
@@ -505,29 +547,27 @@ fun WelcomeScreen(onFinished: () -> Unit) {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.surface
+                        Color(0xFF1A237E), // Темно-синий
+                        Color(0xFF000000)  // Черный
                     )
                 )
             ),
         contentAlignment = Alignment.Center
     ) {
+        SmokeEffect()
+        
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(24.dp).alpha(alpha)
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                contentDescription = null,
-                modifier = Modifier.size(180.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            WinterBall(modifier = Modifier.size(200.dp))
+            
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "Добро пожаловать!",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = Color.White
             )
             Text(
                 text = "TrackLit",
@@ -540,7 +580,70 @@ fun WelcomeScreen(onFinished: () -> Unit) {
                 text = "Ваш профессиональный GPS-трекер рейсов и расхода топлива.",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Winter Edition",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.5f)
+            )
+        }
+    }
+}
+
+@Composable
+fun WinterBall(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val center = center
+        val radius = size.minDimension / 2
+        
+        // Стеклянная сфера
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color.White.copy(alpha = 0.2f), Color(0xFF81D4FA).copy(alpha = 0.4f)),
+                center = center,
+                radius = radius
+            ),
+            radius = radius
+        )
+        
+        // Ободок сферы
+        drawCircle(
+            color = Color.White.copy(alpha = 0.5f),
+            radius = radius,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f)
+        )
+
+        // Снег внутри (сугроб)
+        drawArc(
+            color = Color.White,
+            startAngle = 0f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(center.x - radius, center.y + radius * 0.4f),
+            size = androidx.compose.ui.geometry.Size(radius * 2, radius * 0.6f)
+        )
+
+        // Маленькая елочка внутри
+        val treePath = androidx.compose.ui.graphics.Path().apply {
+            moveTo(center.x, center.y - radius * 0.4f)
+            lineTo(center.x - radius * 0.3f, center.y + radius * 0.5f)
+            lineTo(center.x + radius * 0.3f, center.y + radius * 0.5f)
+            close()
+        }
+        drawPath(treePath, Color(0xFF2E7D32))
+        
+        // Снежинки внутри шара
+        repeat(15) {
+            drawCircle(
+                color = Color.White,
+                radius = 3f,
+                center = Offset(
+                    x = center.x + (Random.nextFloat() * (radius * 1.4f) - radius * 0.7f),
+                    y = center.y + (Random.nextFloat() * (radius * 0.9f) - radius * 0.7f)
+                )
             )
         }
     }
@@ -1324,22 +1427,10 @@ fun MainLocationContent(
     val exitDesc = if (isRussian) "Выход" else "Exit"
     val settingsDesc = if (isRussian) "Настройки" else "Settings"
 
-    // Детектор свайпа для открытия навигатора (с защитой от многократного срабатывания)
-    var lastSwipeTime by remember { mutableStateOf(0L) }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundBrush)
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { _, dragAmount ->
-                    val currentTime = System.currentTimeMillis()
-                    if (Math.abs(dragAmount) > 45 && (currentTime - lastSwipeTime > 1500)) {
-                        lastSwipeTime = currentTime
-                        openExternalNavigator(context)
-                    }
-                }
-            }
     ) {
         if (isTripStarted) {
             SmokeEffect()
@@ -2001,5 +2092,104 @@ fun PreviewHistoryScreen() {
 fun PreviewMyCheckboxScreen() {
     CarDataTheme {
         MyCheckboxScreen(isChecked = true, onCheckedChange = {}, label = "Winter (+10%)")
+    }
+}
+@Preview(widthDp = 1024, heightDp = 500, showBackground = true, name = "Google Play Feature Graphic")
+@Composable
+fun FeatureGraphicPreview() {
+    CarDataTheme(darkTheme = true) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF1A237E), // Темно-синий
+                            Color(0xFF000000)  // Черный
+                        )
+                    )
+                )
+        ) {
+            // Эффект дыма на заднем плане
+            SmokeEffect()
+
+            // Снежинки на заднем плане
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                repeat(50) {
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.3f),
+                        radius = Random.nextInt(2, 6).toFloat(),
+                        center = Offset(
+                            x = Random.nextInt(0, size.width.toInt().coerceAtLeast(1)).toFloat(),
+                            y = Random.nextInt(0, size.height.toInt().coerceAtLeast(1)).toFloat()
+                        )
+                    )
+                }
+            }
+
+            // Основной контент
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(64.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "TrackLit",
+                        style = MaterialTheme.typography.displayLarge,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        fontSize = 80.sp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Professional GPS Trip Tracker\n& Fuel Monitoring System",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White.copy(alpha = 0.7f),
+                        lineHeight = 32.sp
+                    )
+                }
+
+                // Зимний шар в центре
+                Box(
+                    modifier = Modifier.weight(0.8f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    WinterBall(modifier = Modifier.size(280.dp))
+                }
+
+                // Имитация приборов справа
+                Column(
+                    modifier = Modifier.weight(0.5f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Canvas(modifier = Modifier.size(160.dp)) {
+                            drawArc(
+                                color = Color(0xFFFF9800).copy(alpha = 0.2f),
+                                startAngle = 150f, sweepAngle = 240f, useCenter = false,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(15f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            )
+                            drawArc(
+                                color = Color(0xFFFF9800),
+                                startAngle = 150f, sweepAngle = 180f, useCenter = false,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(15f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            )
+                        }
+                        Text("120", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Text(
+                text = "v1.2.3 Winter Edition",
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                color = Color.White.copy(alpha = 0.3f),
+                fontSize = 12.sp
+            )
+        }
     }
 }
