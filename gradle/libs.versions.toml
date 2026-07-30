@@ -18,11 +18,12 @@ coreTesting = "2.2.0"
 dokka = "2.2.0"
 googleServices = "4.5.0"
 firebaseCrashlytics = "3.0.7"
-firebaseBom = "34.15.0"
+firebaseBom = "34.16.0"
 playServicesAdsIdentifier = "18.3.0"
 navigationRuntimeKtx = "2.9.8"
 material = "1.14.0"
 tracer = "1.4.0"
+billing = "9.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -57,6 +58,8 @@ material = { group = "com.google.android.material", name = "material", version.r
 tracer-platform = { group = "ru.ok.tracer", name = "tracer-platform", version.ref = "tracer" }
 tracer-crash-report = { group = "ru.ok.tracer", name = "tracer-crash-report", version.ref = "tracer" }
 tracer-performance-metrics = { group = "ru.ok.tracer", name = "tracer-performance-metrics", version.ref = "tracer" }
+billing = { group = "com.android.billingclient", name = "billing", version.ref = "billing" }
+billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

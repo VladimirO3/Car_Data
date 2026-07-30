@@ -20,6 +20,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.StrictMode
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
@@ -49,11 +50,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -135,6 +138,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.Priority
+import com.rosseti.cardata.billing.BillingManager
 import com.rosseti.cardata.data.SettingsRepository
 import com.rosseti.cardata.model.NumericField
 import com.rosseti.cardata.ui.theme.CarDataTheme
@@ -150,6 +154,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
     private var rotationSensor: Sensor? = null
+    private lateinit var billingManager: BillingManager
 
     private val viewModel: MainViewModel by viewModels {
         object : ViewModelProvider.Factory {
@@ -222,12 +227,34 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val isDebuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (isDebuggable) {
+            StrictMode.setThreadPolicy(
+                StrictMode.ThreadPolicy.Builder()
+                    .detectDiskReads()
+                    .detectDiskWrites()
+                    .detectNetwork()
+                    .penaltyLog()
+                    .build()
+            )
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder()
+                    .detectLeakedSqlLiteObjects()
+                    .detectLeakedClosableObjects()
+                    .penaltyLog()
+                    .build()
+            )
+        }
+
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+
+        billingManager = BillingManager(this)
+        billingManager.startConnection()
 
         val prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE)
         prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
@@ -322,9 +349,21 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     private fun startTripService() {
-        viewModel.onStartTrip()
-        val intent = Intent(this, LocationService::class.java)
-        startForegroundService(intent)
+        try {
+            viewModel.onStartTrip()
+            val intent = Intent(this, LocationService::class.java)
+            startForegroundService(intent)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start LocationService", e)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S 
+                && e is android.app.ForegroundServiceStartNotAllowedException) {
+                val msg = if (viewModel.isRussian.value) 
+                    "Не удалось запустить службу из фонового режима" 
+                    else "Failed to start service from background"
+                makeText(this, msg, Toast.LENGTH_LONG).show()
+            }
+            viewModel.onStopTrip() // Откатываем состояние, так как служба не запустилась
+        }
     }
 
     private fun onStopClicked() {
@@ -374,6 +413,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        billingManager.onDestroy()
         unregisterReceiver(gpsStatusReceiver)
         getSharedPreferences("AppPrefs", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
@@ -1564,7 +1604,7 @@ fun MainLocationContent(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                CompassView(compassHeading, isRussian)
+                                CompassView(compassHeading, isRussian, modifier = Modifier.sizeIn(maxHeight = 220.dp))
                             }
                             
                             // Пустая колонка для балансировки центра, если нужно, 
@@ -1659,7 +1699,7 @@ fun CompassView(heading: Float, isRussian: Boolean, modifier: Modifier = Modifie
     val returnLabel = if (isRussian) "Возврат" else "Return"
     
     Box(
-        modifier = modifier.padding(8.dp),
+        modifier = modifier.padding(8.dp).aspectRatio(1f),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -1748,14 +1788,14 @@ fun CompassView(heading: Float, isRussian: Boolean, modifier: Modifier = Modifie
         )
         Text(
             text = eLabel,
-            modifier = Modifier.align(Alignment.CenterEnd),
+            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp),
             color = onSurface.copy(alpha = 0.6f),
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp
         )
         Text(
             text = wLabel,
-            modifier = Modifier.align(Alignment.CenterStart),
+            modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp),
             color = onSurface.copy(alpha = 0.6f),
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp

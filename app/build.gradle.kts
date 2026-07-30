@@ -121,6 +121,8 @@ dependencies {
     implementation(libs.material)
     implementation(libs.play.services.location)
     implementation(libs.play.ads.identifier)
+    implementation(libs.billing)
+    implementation(libs.billing.ktx)
     implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.navigation:navigation-compose:2.9.8")
     
@@ -129,7 +131,7 @@ dependencies {
     implementation("com.google.accompanist:accompanist-pager-indicators:0.36.0")
 
     // MyTracker SDK
-    implementation("com.my.tracker:mytracker-sdk:3.5.0")
+    implementation("com.my.tracker:mytracker-sdk:3.6.0")
     implementation("com.android.installreferrer:installreferrer:2.2")
     implementation("com.google.android.gms:play-services-appset:16.1.0")
     

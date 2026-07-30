@@ -66,7 +66,7 @@
 
     <div class="content">
         <h1>TrackLit Technical Documentation</h1>
-        <p>Version: 1.0.1329715 | Author: Osetrov.V.V. | Language: English | Update: 2026</p>
+        <p>Version: 1.5.0 | Author: Osetrov.V.V. | Language: English | Update: 2026</p>
 
         <section id="overview">
             <h2>1. Project Overview</h2>
@@ -74,11 +74,13 @@
             <ul class="feature-list">
                 <li>High-sensitivity GPS tracking (3-meter threshold for drift filtering).</li>
                 <li>Dynamic fuel calculation with additive seasonal factors (+10% Winter, +10% Spring).</li>
+                <li><b>Google Play Billing v9.1.0</b> integration for future monetization and premium features.</li>
                 <li>Digital Compass with <b>Return Azimuth</b> (back course) calculation and degree scale.</li>
                 <li>Background operation via Foreground Service with rich notifications (Odometer, trip, speed, <b>compass heading</b>).</li>
-                <li>Instant coordinate sharing feature (Google Maps link).</li>
-                <li>System-level compatibility: Bluetooth permissions for power stats polling on Android 15+.</li>
-                <li>Modernized UI: Material 3 Tonal Icon Buttons and grouped action controls.</li>
+                <li><b>Winter Edition</b> UI: Animated welcome screen with a snow globe and smoke effects.</li>
+                <li>Instant coordinate sharing feature (Google Maps/Yandex link).</li>
+                <li>System-level compatibility: StrictMode monitoring for startup performance and Android 12+ background restrictions safety.</li>
+                <li>Modernized UI: Material 3 Tonal Icon Buttons and automotive-style gauge inputs.</li>
             </ul>
         </section>
 
@@ -89,9 +91,10 @@
                 <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
                 <tr><td><strong>UI</strong></td><td>Jetpack Compose</td><td>Declarative, responsive interface (Portrait/Landscape) with Material 3.</td></tr>
                 <tr><td><strong>Logic</strong></td><td>Kotlin ViewModel</td><td>Calculations, input validation, and state management.</td></tr>
-                <tr><td><strong>Service</strong></td><td>Foreground Service</td><td>Continuous GPS tracking even when the app is minimized.</td></tr>
+                <tr><td><strong>Billing</strong></td><td>Google Play Billing v9.1.0</td><td>Handles subscriptions and one-time purchases via <b>BillingManager</b>.</td></tr>
+                <tr><td><strong>Service</strong></td><td>Foreground Service</td><td>Continuous GPS tracking with Android 12+ safety wrappers (try-catch start).</td></tr>
                 <tr><td><strong>Storage</strong></td><td>SharedPreferences</td><td>Persistent storage for mileage, fuel, and speed records.</td></tr>
-                <tr><td><strong>Diagnostics</strong></td><td>Firebase Crashlytics</td><td>Automatic mapping file upload for de-obfuscated crash reports.</td></tr>
+                <tr><td><strong>Diagnostics</strong></td><td>Firebase & StrictMode</td><td>Firebase Crashlytics for remote reports; StrictMode for local thread blocking detection.</td></tr>
             </table>
         </section>
 

@@ -18,6 +18,7 @@ import android.hardware.SensorManager
 import android.location.Location
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -44,9 +45,10 @@ class LocationService : Service(), SensorEventListener {
     }
 
     override fun onCreate() {
+        val startTime = SystemClock.elapsedRealtime()
         super.onCreate()
+        Log.d("LocationService", "Service onCreate started at $startTime ms")
         // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
-        // Сначала запускаем с минимальными параметрами, затем обновим
         startForegroundServiceSafe()
         
         if (!::repository.isInitialized) {
@@ -174,6 +176,8 @@ class LocationService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val startTime = SystemClock.elapsedRealtime()
+        Log.d("LocationService", "Service onStartCommand started at $startTime ms")
         // ПЕРВЫМ ДЕЛОМ вызываем startForegroundServiceSafe, чтобы избежать ForegroundServiceDidNotStartInTimeException
         startForegroundServiceSafe()
         
