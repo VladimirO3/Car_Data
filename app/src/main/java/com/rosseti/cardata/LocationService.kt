@@ -69,8 +69,9 @@ class LocationService : Service(), SensorEventListener {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 for (location in locationResult.locations) {
-                    if (location.accuracy > 50) {
-                        AppLogger.d(applicationContext, "Пропуск неточной локации: accuracy=${location.accuracy}")
+                    // 1. Увеличиваем порог точности до 80 метров (помогает в городской застройке)
+                    if (location.accuracy > 80) {
+                        AppLogger.d(applicationContext, "Пропуск слишком неточной локации: accuracy=${location.accuracy}")
                         continue
                     }
 
@@ -89,23 +90,21 @@ class LocationService : Service(), SensorEventListener {
                             if (timeDelta > 0.5f) distance / timeDelta else 0f
                         }
                         
-                        val speedKmh = if (rawSpeedMps < 1.0f) 0f else rawSpeedMps * 3.6f
+                        // 2. Снижаем порог фильтрации скорости до 0.5 км/ч (учитываем медленное движение)
+                        val speedKmh = if (rawSpeedMps < 0.15f) 0f else rawSpeedMps * 3.6f
                         repository.saveCurrentSpeed(speedKmh)
                         
-                        // Фильтрация дрейфа GPS: добавляем расстояние только если есть реальное движение (скорость > 3.6 км/ч)
-                        // и пройденное расстояние между точками значимо (>= 5 метров)
-                        if (speedKmh > 2.0f && distance >= 5.0f) {
+                        // 3. Снижаем минимальную дистанцию между точками до 2 метров для большей детализации пути
+                        if (speedKmh > 0.5f && distance >= 2.0f) {
                             val currentTotal = repository.getTotalDistance()
                             val newTotal = currentTotal + distance
                             repository.saveTotalDistance(newTotal)
                             lastLocation = location
                             AppLogger.d(applicationContext, "Одометр обновлен: +$distance м, Итого: $newTotal м")
                         } else if (speedKmh == 0f) {
-                            // Если стоим на месте, обновляем базовую точку, чтобы не накапливать микродвижения
                             lastLocation = location
                         }
                         
-                        // Обновляем уведомление
                         updateNotification(speedKmh, repository.getTotalDistance())
                     }
                 }
@@ -250,7 +249,8 @@ class LocationService : Service(), SensorEventListener {
 
     private fun startLocationUpdates() {
         Log.d("LocationService", "Requesting location updates")
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3000)
+        // Увеличиваем частоту обновлений: каждые 2 секунды вместо 3
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000)
             .setMinUpdateIntervalMillis(1000)
             .setMinUpdateDistanceMeters(0f)
             .build()
