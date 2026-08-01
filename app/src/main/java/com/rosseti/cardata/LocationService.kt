@@ -44,20 +44,24 @@ class LocationService : Service(), SensorEventListener {
         private const val CHANNEL_ID = "location_channel"
     }
 
+    private var cachedPendingIntent: PendingIntent? = null
+    private var isChannelCreated = false
+
     override fun onCreate() {
+        // 1. МГНОВЕННЫЙ запуск Foreground на самой первой строке
+        startForegroundServiceSafe()
+        
         val startTime = SystemClock.elapsedRealtime()
         super.onCreate()
-        Log.d("LocationService", "Service onCreate started at $startTime ms")
-        // Срочный запуск Foreground, чтобы избежать ForegroundServiceDidNotStartInTimeException
-        startForegroundServiceSafe()
+        Log.d("LocationService", "Service onCreate continue at $startTime ms")
         
         if (!::repository.isInitialized) {
             repository = SettingsRepository(applicationContext)
         }
         
-        AppLogger.d(this, "Service onCreate - Инициализация службы")
+        AppLogger.d(this, "Service onCreate - Инициализация компонентов")
         
-        // Инициализация датчиков для компаса в уведомлении
+        // Дальнейшая инициализация датчиков и GPS...
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         rotationSensor?.let {
@@ -66,41 +70,33 @@ class LocationService : Service(), SensorEventListener {
         
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         
+        setupLocationCallback()
+        
+        // Обновляем уведомление на корректное после загрузки репозитория
+        updateNotification(0f, repository.getTotalDistance())
+    }
+
+    private fun setupLocationCallback() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 for (location in locationResult.locations) {
-                    // 1. Увеличиваем порог точности до 80 метров (помогает в городской застройке)
-                    if (location.accuracy > 80) {
-                        AppLogger.d(applicationContext, "Пропуск слишком неточной локации: accuracy=${location.accuracy}")
-                        continue
-                    }
+                    if (location.accuracy > 80) continue
 
                     val last = lastLocation
                     if (last == null) {
                         lastLocation = location
-                        AppLogger.d(applicationContext, "Первая точка GPS получена: lat=${location.latitude}, lon=${location.longitude}")
                     } else {
                         val distance = last.distanceTo(location)
+                        val rawSpeedMps = if (location.hasSpeed()) location.speed 
+                                         else (location.time - last.time).let { if (it > 500) distance / (it / 1000f) else 0f }
                         
-                        // Рассчитываем скорость
-                        val rawSpeedMps = if (location.hasSpeed()) {
-                            location.speed
-                        } else {
-                            val timeDelta = (location.time - last.time) / 1000f
-                            if (timeDelta > 0.5f) distance / timeDelta else 0f
-                        }
-                        
-                        // 2. Снижаем порог фильтрации скорости до 0.5 км/ч (учитываем медленное движение)
                         val speedKmh = if (rawSpeedMps < 0.15f) 0f else rawSpeedMps * 3.6f
                         repository.saveCurrentSpeed(speedKmh)
                         
-                        // 3. Снижаем минимальную дистанцию между точками до 2 метров для большей детализации пути
                         if (speedKmh > 0.5f && distance >= 2.0f) {
-                            val currentTotal = repository.getTotalDistance()
-                            val newTotal = currentTotal + distance
+                            val newTotal = repository.getTotalDistance() + distance
                             repository.saveTotalDistance(newTotal)
                             lastLocation = location
-                            AppLogger.d(applicationContext, "Одометр обновлен: +$distance м, Итого: $newTotal м")
                         } else if (speedKmh == 0f) {
                             lastLocation = location
                         }
@@ -110,9 +106,6 @@ class LocationService : Service(), SensorEventListener {
                 }
             }
         }
-        
-        // После инициализации всех компонентов обновляем уведомление на корректное
-        updateNotification(0f, repository.getTotalDistance())
     }
 
     @SuppressLint("MissingPermission")
@@ -122,7 +115,6 @@ class LocationService : Service(), SensorEventListener {
         val traveledKm = totalDistanceMeters / 1000f
         val baseKm = repository.getFieldValue("km")
         val totalOdometer = baseKm + traveledKm
-        
         val isRussian = repository.getIsRussian()
         
         val headingDegrees = ((currentHeading % 360 + 360) % 360).toInt()
@@ -137,20 +129,12 @@ class LocationService : Service(), SensorEventListener {
         
         val formattedContent = String.format(java.util.Locale.US, contentFormat, totalOdometer, traveledKm, speedKmh, direction)
 
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(formattedContent)
             .setStyle(NotificationCompat.BigTextStyle().bigText(formattedContent))
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(cachedPendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
@@ -174,13 +158,53 @@ class LocationService : Service(), SensorEventListener {
         return directions[index % 8] + " (${bearing.toInt()}°)"
     }
 
+    private fun startForegroundServiceSafe() {
+        try {
+            if (!isChannelCreated) {
+                val manager = getSystemService(NotificationManager::class.java)
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "GPS Tracking",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply { setShowBadge(false) }
+                manager.createNotificationChannel(channel)
+                isChannelCreated = true
+            }
+
+            if (cachedPendingIntent == null) {
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+                cachedPendingIntent = PendingIntent.getActivity(
+                    this, 0, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            }
+
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("TrackLit")
+                .setContentText("GPS Tracking active")
+                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setContentIntent(cachedPendingIntent)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+                .build()
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e("LocationService", "Failed to startForeground", e)
+            stopSelf()
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val startTime = SystemClock.elapsedRealtime()
-        Log.d("LocationService", "Service onStartCommand started at $startTime ms")
-        // ПЕРВЫМ ДЕЛОМ вызываем startForegroundServiceSafe, чтобы избежать ForegroundServiceDidNotStartInTimeException
-        startForegroundServiceSafe()
-        
-        AppLogger.d(this, "Service onStartCommand - Запуск обновления координат")
+        Log.d("LocationService", "Service onStartCommand at $startTime ms")
         startLocationUpdates()
         return START_STICKY
     }
@@ -200,56 +224,8 @@ class LocationService : Service(), SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    private fun startForegroundServiceSafe() {
-        try {
-            val manager = getSystemService(NotificationManager::class.java)
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "GPS Tracking",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                setShowBadge(false)
-            }
-            manager.createNotificationChannel(channel)
-
-            val intent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            val pendingIntent = PendingIntent.getActivity(
-                this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            // Используем фиксированные строки для максимально быстрого запуска без обращения к SharedPreferences
-            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("TrackLit")
-                .setContentText("GPS Tracking active")
-                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-                .setContentIntent(pendingIntent)
-                .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-                .build()
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
-        } catch (e: Exception) {
-            Log.e("LocationService", "Critical error in startForegroundServiceSafe", e)
-            // Не замалчиваем ошибку полностью, но пытаемся выжить
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S 
-                && e is android.app.ForegroundServiceStartNotAllowedException) {
-                AppLogger.e(this, "Foreground service start not allowed from background", e)
-            }
-        }
-    }
-
-
     private fun startLocationUpdates() {
         Log.d("LocationService", "Requesting location updates")
-        // Увеличиваем частоту обновлений: каждые 2 секунды вместо 3
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000)
             .setMinUpdateIntervalMillis(1000)
             .setMinUpdateDistanceMeters(0f)
@@ -270,8 +246,12 @@ class LocationService : Service(), SensorEventListener {
 
     override fun onDestroy() {
         super.onDestroy()
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-        sensorManager.unregisterListener(this)
+        if (::fusedLocationClient.isInitialized) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+        }
+        if (::sensorManager.isInitialized) {
+            sensorManager.unregisterListener(this)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
