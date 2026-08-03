@@ -26,7 +26,6 @@ import android.util.Log
 import android.widget.Toast
 import android.widget.Toast.makeText
 import androidx.activity.ComponentActivity
-import androidx.activity.enableEdgeToEdge
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -50,13 +49,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -131,6 +136,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.gms.common.api.ResolvableApiException
@@ -247,7 +254,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
 
         installSplashScreen()
-        enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         super.onCreate(savedInstanceState)
         
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -272,6 +279,21 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 2 -> true
                 else -> androidx.compose.foundation.isSystemInDarkTheme()
             }
+
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val view = androidx.compose.ui.platform.LocalView.current
+            if (!view.isInEditMode) {
+                androidx.compose.runtime.SideEffect {
+                    val window = (context as? android.app.Activity)?.window
+                    if (window != null) {
+                        androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
+                            isAppearanceLightStatusBars = !isDark
+                            isAppearanceLightNavigationBars = !isDark
+                        }
+                    }
+                }
+            }
+
             CarDataTheme(darkTheme = isDark) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     MainLocationScreen(viewModel, ::onStartClicked, ::onStopClicked)
@@ -598,7 +620,10 @@ fun WelcomeScreen(onFinished: () -> Unit) {
         
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp).alpha(alpha)
+            modifier = Modifier
+                .safeDrawingPadding()
+                .padding(24.dp)
+                .alpha(alpha)
         ) {
             WinterBall(modifier = Modifier.size(200.dp))
             
@@ -717,7 +742,10 @@ fun GoodbyeScreen(onFinished: () -> Unit) {
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.safeDrawingPadding()
+        ) {
             // Sad Face Drawing
             Canvas(modifier = Modifier.size(120.dp).alpha(alpha)) {
                 val center = Offset(size.width / 2f, size.height / 2f)
@@ -792,6 +820,7 @@ fun SettingsScreen(
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
         Scaffold(
             containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets.safeDrawing,
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(title, fontWeight = FontWeight.Bold) },
@@ -901,6 +930,7 @@ fun LegalScreen(isRussian: Boolean, onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
         Scaffold(
             containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets.safeDrawing,
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(title, fontWeight = FontWeight.Bold) },
@@ -993,6 +1023,7 @@ fun AuthorScreen(isRussian: Boolean, onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
         Scaffold(
             containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets.safeDrawing,
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(title, fontWeight = FontWeight.Bold) },
@@ -1219,6 +1250,7 @@ fun HistoryScreen(
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
         Scaffold(
             containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets.safeDrawing,
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(title, fontWeight = FontWeight.Bold) },
@@ -1309,6 +1341,7 @@ fun InstructionScreen(
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
         Scaffold(
             containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets.safeDrawing,
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(title, fontWeight = FontWeight.Bold) },
@@ -1477,6 +1510,7 @@ fun MainLocationContent(
         }
         Scaffold(
             containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets.safeDrawing,
             topBar = {
                 CenterAlignedTopAppBar(
                     title = {
