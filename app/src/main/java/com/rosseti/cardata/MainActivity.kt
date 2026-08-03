@@ -1609,29 +1609,72 @@ fun MainLocationContent(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(
-                                modifier = Modifier.weight(1.2f).verticalScroll(scrollStateLeft),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy((0).dp)
-                                    ) {
-                                        fields.forEachIndexed { index, field ->
-                                            key(field.id) {
+                                Column(
+                                    modifier = Modifier.weight(1.2f).verticalScroll(scrollStateLeft),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            // Первые два ряда по две колонки (поля 0,1 и 2,3)
+                                            for (i in 0 until 2) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(0.95f),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    val field1 = fields.getOrNull(i * 2)
+                                                    val field2 = fields.getOrNull(i * 2 + 1)
+
+                                                    if (field1 != null) {
+                                                        AutomotiveGaugeField(
+                                                            field = field1,
+                                                            onValueChange = { onFieldChange(i * 2, it) },
+                                                            isTripStarted = isTripStarted,
+                                                            isNarrow = isNarrowScreen,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                    }
+                                                    if (field2 != null) {
+                                                        AutomotiveGaugeField(
+                                                            field = field2,
+                                                            onValueChange = { onFieldChange(i * 2 + 1, it) },
+                                                            isTripStarted = isTripStarted,
+                                                            isNarrow = isNarrowScreen,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            // Пятое поле (индекс 4) на всю ширину двух колонок выше
+                                            val field5 = fields.getOrNull(4)
+                                            if (field5 != null) {
                                                 AutomotiveGaugeField(
-                                                    field = field,
-                                                    onValueChange = { onFieldChange(index, it) },
+                                                    field = field5,
+                                                    onValueChange = { onFieldChange(4, it) },
                                                     isTripStarted = isTripStarted,
                                                     isNarrow = isNarrowScreen,
-                                                    modifier = Modifier.widthIn(max = 260.dp).fillMaxWidth(0.9f)
+                                                    modifier = Modifier.fillMaxWidth(0.95f)
                                                 )
+                                            }
+
+                                            // Если полей больше пяти, выводим их списком ниже (на всякий случай)
+                                            if (fields.size > 5) {
+                                                for (i in 5 until fields.size) {
+                                                    AutomotiveGaugeField(
+                                                        field = fields[i],
+                                                        onValueChange = { onFieldChange(i, it) },
+                                                        isTripStarted = isTripStarted,
+                                                        isNarrow = isNarrowScreen,
+                                                        modifier = Modifier.widthIn(max = 260.dp).fillMaxWidth(0.9f)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
 
                             Column(
                                 modifier = Modifier.weight(1f),

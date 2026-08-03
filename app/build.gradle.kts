@@ -30,11 +30,18 @@ val minor: String = versionProps.getProperty("minor_version", "1")
 val patch: String = versionProps.getProperty("patch_version", "0")
 
 val taskNames = project.gradle.startParameter.taskNames
-val isBuilding = taskNames.any { it.contains("assemble") || it.contains("bundle") || it.contains("install") }
+val isBuilding = taskNames.any { 
+    val t = it.lowercase()
+    t.contains("assemble") || t.contains("bundle") || t.contains("install") || t.contains("build") || t.contains("generate")
+}
+
 val finalBuildNumber = if (isBuilding) {
     val next = buildNumber + 1
     versionProps.setProperty("build_number", next.toString())
-    FileOutputStream(versionPropsFile).use { versionProps.store(it, null) }
+    versionProps.setProperty("major_version", major)
+    versionProps.setProperty("minor_version", minor)
+    versionProps.setProperty("patch_version", patch)
+    FileOutputStream(versionPropsFile).use { versionProps.store(it, "Updated by Gradle Build") }
     next
 } else {
     buildNumber
@@ -43,6 +50,7 @@ val finalBuildNumber = if (isBuilding) {
 android {
     namespace = "com.rosseti.cardata"
     compileSdk = 37
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.rosseti.cardata"
@@ -67,6 +75,10 @@ android {
                 mappingFileUploadEnabled = true
                 nativeSymbolUploadEnabled = true
             }
+            // Генерация файла отладочных символов для Google Play (native-debug-symbols.zip)
+            ndk {
+                debugSymbolLevel = "full"
+            }
         }
     }
     compileOptions {
@@ -81,6 +93,7 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = false
+            keepDebugSymbols.add("**/*.so")
         }
         dex {
             useLegacyPackaging = false
@@ -151,4 +164,16 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+tasks.register<Zip>("zipNativeSymbols") {
+    val libsDir = file("${project.buildDir}/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib")
+    from(libsDir)
+    include("**/*.so")
+    archiveFileName.set("native-debug-symbols.zip")
+    destinationDirectory.set(file("${project.buildDir}/outputs/native-debug-symbols/release"))
+}
+
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    finalizedBy("zipNativeSymbols")
 }
