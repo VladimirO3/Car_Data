@@ -93,9 +93,19 @@ class LocationService : Service(), SensorEventListener {
                         val speedKmh = if (rawSpeedMps < 0.15f) 0f else rawSpeedMps * 3.6f
                         repository.saveCurrentSpeed(speedKmh)
                         
-                        if (speedKmh > 0.5f && distance >= 2.0f) {
+                        if (speedKmh > 0.5f && distance >= 1.0f) { // Снижаем порог до 1 метра для точности
                             val newTotal = repository.getTotalDistance() + distance
                             repository.saveTotalDistance(newTotal)
+                            
+                            // Разделение на город и межгород
+                            if (speedKmh < 40f) {
+                                val cityDist = repository.getCityDistance() + distance
+                                repository.saveCityDistance(cityDist)
+                            } else {
+                                val intercityDist = repository.getIntercityDistance() + distance
+                                repository.saveIntercityDistance(intercityDist)
+                            }
+
                             lastLocation = location
                         } else if (speedKmh == 0f) {
                             lastLocation = location

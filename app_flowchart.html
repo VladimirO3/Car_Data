@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Блок-схема TrackLit v1.2</title>
+    <title>Блок-схема TrackLit v1.6</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; }
@@ -13,16 +13,18 @@
 </head>
 <body>
     <div class="container">
-        <h1>Архитектура и логика TrackLit v1.2</h1>
+        <h1>Архитектура и логика TrackLit v1.6</h1>
         <div class="mermaid">
             graph TD
                 %% Слой UI
                 subgraph UI_Layer [Интерфейс «Приборная панель»]
                     A[MainActivity] -->|Свайп| MAP[Yandex Maps Tab]
                     A -->|Круглая кнопка СТАРТ| B{Проверка GPS}
-                    A -->|Иконка Инфо| IS[Инструкция]
-                    A -->|Иконка Истории| HS[История рейсов]
-                    HS -->|Крестик| DEL[Удаление записи]
+                    A -->|Иконка Настроек| SET[Настройки]
+                    SET -->|Настройки рейса| TS[Спецоборудование & Прогрев]
+                    SET -->|История| HS[JSON История рейсов]
+                    HS -->|Иконка шестеренки| EDIT[Редактирование записи]
+                    HS -->|Крестик| DEL[Удаление по ID]
                     B -- Выключен --> C[Диалог: Включите GPS]
                     B -- Включен --> D[Запрос разрешений]
                     D -->|Разрешено| E[Запуск LocationService]
@@ -32,8 +34,11 @@
                 subgraph Hardware_Service [Сервисы и Датчики]
                     E --> F[Foreground Notification]
                     F --> G[FusedLocationProvider]
-                    G -->|Координаты| H[Фильтрация помех < 3м]
-                    H -->|Дистанция| I[SharedPrefs: total_distance]
+                    G -->|Скорость < 40| CITY[Учет Город]
+                    G -->|Скорость >= 40| I_CITY[Учет Межгород]
+                    CITY --> I[SharedPrefs: total_distance]
+                    I_CITY --> I
+                    H[Порог 1 метр] --> I
 
                     S[Rotation Vector Sensor] -->|Азимут| A
                 end

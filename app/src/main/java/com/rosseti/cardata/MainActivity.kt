@@ -442,7 +442,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 }
 
 enum class Screen {
-    MAIN, SETTINGS, HISTORY, INSTRUCTION, LEGAL, AUTHOR, GOODBYE, WELCOME
+    MAIN, SETTINGS, HISTORY, INSTRUCTION, LEGAL, AUTHOR, GOODBYE, WELCOME, TRIP_SETTINGS
 }
 
 /**
@@ -514,12 +514,13 @@ fun MainLocationScreen(
             Screen.HISTORY -> {
                 BackHandler { currentScreen = Screen.SETTINGS }
                 HistoryScreen(
-                    history = viewModel.tripHistory,
+                    records = viewModel.tripRecords,
                     isRussian = viewModel.isRussian.value,
                     onBack = { currentScreen = Screen.SETTINGS },
                     onShare = { shareTripHistory(context) },
                     onClear = { viewModel.clearHistory() },
-                    onDeleteItem = { viewModel.deleteHistoryItem(it) }
+                    onDeleteItem = { viewModel.deleteHistoryItemById(it) },
+                    onEditItem = { viewModel.updateHistoryItem(it) }
                 )
             }
             Screen.INSTRUCTION -> {
@@ -537,7 +538,15 @@ fun MainLocationScreen(
                     onHistoryClick = { currentScreen = Screen.HISTORY },
                     onInstructionClick = { currentScreen = Screen.INSTRUCTION },
                     onLegalClick = { currentScreen = Screen.LEGAL },
-                    onAuthorClick = { currentScreen = Screen.AUTHOR }
+                    onAuthorClick = { currentScreen = Screen.AUTHOR },
+                    onTripSettingsClick = { currentScreen = Screen.TRIP_SETTINGS }
+                )
+            }
+            Screen.TRIP_SETTINGS -> {
+                BackHandler { currentScreen = Screen.SETTINGS }
+                TripSettingsScreen(
+                    viewModel = viewModel,
+                    onBack = { currentScreen = Screen.SETTINGS }
                 )
             }
             Screen.LEGAL -> {
@@ -803,7 +812,8 @@ fun SettingsScreen(
     onHistoryClick: () -> Unit,
     onInstructionClick: () -> Unit,
     onLegalClick: () -> Unit,
-    onAuthorClick: () -> Unit
+    onAuthorClick: () -> Unit,
+    onTripSettingsClick: () -> Unit
 ) {
     val context = LocalContext.current
     val isRussian = viewModel.isRussian.value
@@ -841,6 +851,14 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Trip Settings
+                SettingsItem(
+                    icon = Icons.Default.Settings,
+                    title = if (isRussian) "Настройки рейса" else "Trip Settings",
+                    subtitle = if (isRussian) "Спецоборудование" else "Special Equipment",
+                    onClick = onTripSettingsClick
+                )
+
                 // Language Setting
                 val languageSubtitle = when (viewModel.languageMode.value) {
                     0 -> if (isRussian) "Системный" else "System"
@@ -907,6 +925,91 @@ fun SettingsScreen(
                     title = if (isRussian) "Поделиться координатами" else "Share Coordinates",
                     subtitle = if (isRussian) "Отправить текущую локацию" else "Send your current location",
                     onClick = { shareCurrentLocation(context) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TripSettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
+    val isRussian = viewModel.isRussian.value
+    val title = if (isRussian) "Настройки рейса" else "Trip Settings"
+    
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
+        )
+    )
+
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets.safeDrawing,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text(title, fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = if (isRussian) "Работа спец оборудования" else "Special Equipment Operation",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        MyCheckboxScreen(
+                            isChecked = viewModel.equip1.value,
+                            onCheckedChange = { viewModel.toggleEquipment(1, it) },
+                            label = if (isRussian) "1 час" else "1 hour"
+                        )
+                        MyCheckboxScreen(
+                            isChecked = viewModel.equip2.value,
+                            onCheckedChange = { viewModel.toggleEquipment(2, it) },
+                            label = if (isRussian) "2 часа" else "2 hours"
+                        )
+                        MyCheckboxScreen(
+                            isChecked = viewModel.equip3.value,
+                            onCheckedChange = { viewModel.toggleEquipment(3, it) },
+                            label = if (isRussian) "3 часа" else "3 hours"
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        MyCheckboxScreen(
+                            isChecked = viewModel.isWarmup.value,
+                            onCheckedChange = { viewModel.toggleWarmup(it) },
+                            label = if (isRussian) "Прогрев двигателя" else "Engine warmup"
+                        )
+                    }
+                }
+                
+                Text(
+                    text = if (isRussian) 
+                        "Выбранные часы добавляют по 9 литров, а прогрев — 4.5 литра к общему расходу топлива." 
+                        else "Selected hours add 9 liters each, and warmup adds 4.5 liters to the total fuel consumption.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
                 )
             }
         }
@@ -1206,12 +1309,13 @@ private fun openExternalNavigator(context: android.content.Context) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
-    history: List<String>,
+    records: List<com.rosseti.cardata.model.TripRecord>,
     isRussian: Boolean,
     onBack: () -> Unit,
     onShare: () -> Unit,
     onClear: () -> Unit,
-    onDeleteItem: (String) -> Unit
+    onDeleteItem: (String) -> Unit,
+    onEditItem: (com.rosseti.cardata.model.TripRecord) -> Unit
 ) {
     val title = if (isRussian) "История рейсов" else "Trip History"
     val emptyMsg = if (isRussian) "История пока пуста" else "History is empty"
@@ -1229,6 +1333,7 @@ fun HistoryScreen(
     )
     
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.rosseti.cardata.model.TripRecord?>(null) }
 
     if (showDeleteDialog) {
         androidx.compose.material3.AlertDialog(
@@ -1247,6 +1352,18 @@ fun HistoryScreen(
         )
     }
 
+    editingRecord?.let { record ->
+        EditRecordDialog(
+            record = record,
+            isRussian = isRussian,
+            onDismiss = { editingRecord = null },
+            onConfirm = {
+                onEditItem(it)
+                editingRecord = null
+            }
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -1260,7 +1377,7 @@ fun HistoryScreen(
                         }
                     },
                     actions = {
-                        if (history.isNotEmpty()) {
+                        if (records.isNotEmpty()) {
                             IconButton(onClick = { showDeleteDialog = true }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Clear History")
                             }
@@ -1275,7 +1392,7 @@ fun HistoryScreen(
                 )
             }
         ) { paddingValues ->
-            if (history.isEmpty()) {
+            if (records.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
                     Text(emptyMsg, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.outline)
                 }
@@ -1285,7 +1402,29 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item { Spacer(modifier = Modifier.height(8.dp)) }
-                    items(history) { record ->
+                    items(records) { record ->
+                        val displayStr = if (isRussian) {
+                            var base = String.format(Locale.US, "%s | %s-%s | Путь: %s км | Общий: %s км | Топливо: %s л",
+                                record.date, record.startTime, record.endTime, record.distance, record.totalKm, record.remainingFuel)
+                            if (record.cityDistance != "0.00") base += " | Город: ${record.cityDistance} км"
+                            if (record.intercityDistance != "0.00") base += " | Межгород: ${record.intercityDistance} км"
+                            if (record.equipmentFuel != "0.00") {
+                                val details = if (record.equipmentDetails.isNotEmpty()) " (${record.equipmentDetails})" else ""
+                                base += " | Доп. расход: ${record.equipmentFuel} л$details"
+                            }
+                            base
+                        } else {
+                            var base = String.format(Locale.US, "%s | %s-%s | Trip: %s km | Total: %s km | Fuel: %s L",
+                                record.date, record.startTime, record.endTime, record.distance, record.totalKm, record.remainingFuel)
+                            if (record.cityDistance != "0.00") base += " | City: ${record.cityDistance} km"
+                            if (record.intercityDistance != "0.00") base += " | Intercity: ${record.intercityDistance} km"
+                            if (record.equipmentFuel != "0.00") {
+                                val details = if (record.equipmentDetails.isNotEmpty()) " (${record.equipmentDetails})" else ""
+                                base += " | Extra Fuel: ${record.equipmentFuel} L$details"
+                            }
+                            base
+                        }
+
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -1296,13 +1435,25 @@ fun HistoryScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = record,
+                                    text = displayStr,
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontSize = 13.sp
                                 )
                                 IconButton(
-                                    onClick = { onDeleteItem(record) },
+                                    onClick = { editingRecord = record },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Edit Item",
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = { onDeleteItem(record.id) },
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
@@ -1320,6 +1471,81 @@ fun HistoryScreen(
             }
         }
     }
+}
+
+@Composable
+fun EditRecordDialog(
+    record: com.rosseti.cardata.model.TripRecord,
+    isRussian: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (com.rosseti.cardata.model.TripRecord) -> Unit
+) {
+    var distance by remember { mutableStateOf(record.distance) }
+    var totalKm by remember { mutableStateOf(record.totalKm) }
+    var fuel by remember { mutableStateOf(record.remainingFuel) }
+    var cityDist by remember { mutableStateOf(record.cityDistance) }
+    var intercityDist by remember { mutableStateOf(record.intercityDistance) }
+    var extraFuel by remember { mutableStateOf(record.equipmentFuel) }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (isRussian) "Редактировать запись" else "Edit Record") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = distance,
+                    onValueChange = { distance = it },
+                    label = { Text(if (isRussian) "Путь (км)" else "Trip (km)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = totalKm,
+                    onValueChange = { totalKm = it },
+                    label = { Text(if (isRussian) "Общий (км)" else "Total (km)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = fuel,
+                    onValueChange = { fuel = it },
+                    label = { Text(if (isRussian) "Топливо (л)" else "Fuel (L)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = cityDist,
+                    onValueChange = { cityDist = it },
+                    label = { Text(if (isRussian) "Город (км)" else "City (km)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = intercityDist,
+                    onValueChange = { intercityDist = it },
+                    label = { Text(if (isRussian) "Межгород (км)" else "Intercity (km)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                OutlinedTextField(
+                    value = extraFuel,
+                    onValueChange = { extraFuel = it },
+                    label = { Text(if (isRussian) "Доп. расход (л)" else "Extra Fuel (L)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onConfirm(record.copy(
+                    distance = distance,
+                    totalKm = totalKm,
+                    remainingFuel = fuel,
+                    cityDistance = cityDist,
+                    intercityDistance = intercityDist,
+                    equipmentFuel = extraFuel
+                ))
+            }) { Text(if (isRussian) "Сохранить" else "Save") }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) { Text(if (isRussian) "Отмена" else "Cancel") }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1681,7 +1907,13 @@ fun MainLocationContent(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                CompassView(compassHeading, isRussian, modifier = Modifier.sizeIn(maxHeight = 220.dp))
+                                CompassView(
+                                    compassHeading, 
+                                    isRussian, 
+                                    modifier = Modifier
+                                        .sizeIn(maxHeight = 220.dp)
+                                        .padding(bottom = 8.dp)
+                                )
                             }
                             
                             // Пустая колонка для балансировки центра, если нужно, 
@@ -1727,26 +1959,32 @@ fun MainLocationContent(
                             }
                         }
                         
-                        Spacer(modifier = Modifier.height(0.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
                         
-                        Button(
-                            onClick = if (isTripStarted) onStopClick else onStartClick,
-                            modifier = Modifier.size(90.dp),
-                            shape = CircleShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (isTripStarted) stopLabel else startLabel,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                            val compassSize = if (isTallScreen) 140.dp else if (isNarrowScreen) 110.dp else 130.dp
+                            CompassView(compassHeading, isRussian, modifier = Modifier.size(compassSize))
+
+                            Button(
+                                onClick = if (isTripStarted) onStopClick else onStartClick,
+                                modifier = Modifier.size(90.dp),
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                            ) {
+                                Text(
+                                    text = if (isTripStarted) stopLabel else startLabel,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
                         }
 
-                        val compassSize = if (isTallScreen) 140.dp else if (isNarrowScreen) 110.dp else 130.dp
-                        CompassView(compassHeading, isRussian, modifier = Modifier.size(compassSize))
-
-                        Spacer(modifier = Modifier.height(65.dp))
+                        Spacer(modifier = Modifier.height(80.dp))
                         Text(
                             text = copyrightLabel,
                             modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
@@ -1901,19 +2139,60 @@ fun CompassView(heading: Float, isRussian: Boolean, modifier: Modifier = Modifie
 
 private fun shareTripHistory(context: android.content.Context) {
     val repository = SettingsRepository(context)
-    val history = repository.getTripHistory()
+    val historyJson = repository.getTripHistoryJson()
     val isRussian = repository.getIsRussian()
 
-    if (history.isEmpty()) {
-        Toast.makeText(context, if (isRussian) "История пуста" else "History is empty", Toast.LENGTH_SHORT).show()
-        return
-    }
+    try {
+        val jsonArray = org.json.JSONArray(historyJson)
+        if (jsonArray.length() == 0) {
+            Toast.makeText(context, if (isRussian) "История пуста" else "History is empty", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, history)
+        val sb = StringBuilder()
+        for (i in 0 until jsonArray.length()) {
+            val obj = jsonArray.getJSONObject(i)
+            val date = obj.getString("date")
+            val start = obj.getString("startTime")
+            val end = obj.getString("endTime")
+            val dist = obj.getString("distance")
+            val total = obj.getString("totalKm")
+            val fuel = obj.getString("remainingFuel")
+            val city = if (obj.has("cityDistance")) obj.getString("cityDistance") else "0.00"
+            val intercity = if (obj.has("intercityDistance")) obj.getString("intercityDistance") else "0.00"
+            val equipFuel = if (obj.has("equipmentFuel")) obj.getString("equipmentFuel") else "0.00"
+            val equipDetails = if (obj.has("equipmentDetails")) obj.getString("equipmentDetails") else ""
+
+            val record = if (isRussian) {
+                var r = "$date | $start-$end | Путь: $dist км | Общий: $total км | Топливо: $fuel л"
+                if (city != "0.00") r += " | Город: $city км"
+                if (intercity != "0.00") r += " | Межгород: $intercity км"
+                if (equipFuel != "0.00") {
+                    val d = if (equipDetails.isNotEmpty()) " ($equipDetails)" else ""
+                    r += " | Доп. расход: $equipFuel л$d"
+                }
+                r
+            } else {
+                var r = "$date | $start-$end | Trip: $dist km | Total: $total km | Fuel: $fuel L"
+                if (city != "0.00") r += " | City: $city km"
+                if (intercity != "0.00") r += " | Intercity: $intercity km"
+                if (equipFuel != "0.00") {
+                    val d = if (equipDetails.isNotEmpty()) " ($equipDetails)" else ""
+                    r += " | Extra Fuel: $equipFuel L$d"
+                }
+                r
+            }
+            sb.append(record).append("\n")
+        }
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, sb.toString())
+        }
+        context.startActivity(Intent.createChooser(intent, if (isRussian) "Поделиться историей..." else "Share history via..."))
+    } catch (e: Exception) {
+        Toast.makeText(context, "Error sharing history", Toast.LENGTH_SHORT).show()
     }
-    context.startActivity(Intent.createChooser(intent, if (isRussian) "Поделиться историей..." else "Share history via..."))
 }
 
 private fun shareCurrentLocation(context: android.content.Context) {
@@ -2191,15 +2470,19 @@ fun PreviewMainLocationContentLandscape() {
 fun PreviewHistoryScreen() {
     CarDataTheme {
         HistoryScreen(
-            history = listOf(
-                "15.10.2023 | 08:30-10:15 | Путь: 45.20 км | Общий: 12540.30 км | Топливо: 32.50 л",
-                "14.10.2023 | 12:00-14:00 | Путь: 80.00 км | Общий: 12495.10 км | Топливо: 40.00 л"
+            records = listOf(
+                com.rosseti.cardata.model.TripRecord(
+                    date = "15.10.2023", startTime = "08:30", endTime = "10:15",
+                    distance = "45.20", totalKm = "12540.30", remainingFuel = "32.50",
+                    cityDistance = "10.00", intercityDistance = "35.20"
+                )
             ),
             isRussian = true,
             onBack = {},
             onShare = {},
             onClear = {},
-            onDeleteItem = {}
+            onDeleteItem = {},
+            onEditItem = {}
         )
     }
 }

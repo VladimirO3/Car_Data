@@ -86,7 +86,20 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     var isWinter = mutableStateOf(false)
 
     /**
-     * Список записей истории поездок.
+     * Состояние чекбоксов спецоборудования.
+     */
+    var equip1 = mutableStateOf(repository.getEquipment(1))
+    var equip2 = mutableStateOf(repository.getEquipment(2))
+    var equip3 = mutableStateOf(repository.getEquipment(3))
+    var isWarmup = mutableStateOf(repository.getWarmup())
+
+    /**
+     * Список записей истории поездок в виде объектов.
+     */
+    val tripRecords = mutableStateListOf<TripRecord>()
+
+    /**
+     * Список строковых представлений для отображения (для совместимости).
      */
     var tripHistory = mutableStateListOf<String>()
         private set
@@ -202,15 +215,107 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
 
     fun loadHistory() {
         tripHistory.clear()
-        val historyStr = repository.getTripHistory()
-        if (!historyStr.isNullOrEmpty()) {
-            tripHistory.addAll(historyStr.split("\n").reversed())
+        tripRecords.clear()
+        val historyJson = repository.getTripHistoryJson()
+        try {
+            val jsonArray = org.json.JSONArray(historyJson)
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                val record = TripRecord(
+                    id = if (obj.has("id")) obj.getString("id") else java.util.UUID.randomUUID().toString(),
+                    date = obj.getString("date"),
+                    startTime = obj.getString("startTime"),
+                    endTime = obj.getString("endTime"),
+                    distance = obj.getString("distance"),
+                    totalKm = obj.getString("totalKm"),
+                    remainingFuel = obj.getString("remainingFuel"),
+                    cityDistance = if (obj.has("cityDistance")) obj.getString("cityDistance") else "0.00",
+                    intercityDistance = if (obj.has("intercityDistance")) obj.getString("intercityDistance") else "0.00",
+                    equipmentFuel = if (obj.has("equipmentFuel")) obj.getString("equipmentFuel") else "0.00",
+                    equipmentDetails = if (obj.has("equipmentDetails")) obj.getString("equipmentDetails") else ""
+                )
+                tripRecords.add(record)
+                tripHistory.add(formatRecordForDisplay(record))
+            }
+            tripHistory.reverse()
+            tripRecords.reverse()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
-    fun deleteHistoryItem(record: String) {
-        repository.deleteTripRecord(record)
+    private fun formatRecordForDisplay(record: TripRecord): String {
+        return if (isRussian.value) {
+            var base = String.format(Locale.US, "%s | %s-%s | Путь: %s км | Общий: %s км | Топливо: %s л",
+                record.date, record.startTime, record.endTime, record.distance, record.totalKm, record.remainingFuel)
+            if (record.cityDistance != "0.00") base += " | Город: ${record.cityDistance} км"
+            if (record.intercityDistance != "0.00") base += " | Межгород: ${record.intercityDistance} км"
+            if (record.equipmentFuel != "0.00") {
+                val details = if (record.equipmentDetails.isNotEmpty()) " (${record.equipmentDetails})" else ""
+                base += " | Доп. расход: ${record.equipmentFuel} л$details"
+            }
+            base
+        } else {
+            var base = String.format(Locale.US, "%s | %s-%s | Trip: %s km | Total: %s km | Fuel: %s L",
+                record.date, record.startTime, record.endTime, record.distance, record.totalKm, record.remainingFuel)
+            if (record.cityDistance != "0.00") base += " | City: ${record.cityDistance} km"
+            if (record.intercityDistance != "0.00") base += " | Intercity: ${record.intercityDistance} km"
+            if (record.equipmentFuel != "0.00") {
+                val details = if (record.equipmentDetails.isNotEmpty()) " (${record.equipmentDetails})" else ""
+                base += " | Extra Fuel: ${record.equipmentFuel} L$details"
+            }
+            base
+        }
+    }
+
+    fun deleteHistoryItem(recordStr: String) {
+        // Находим ID записи по строке (не очень надежно, но для текущей логики пойдет)
+        // Лучше передавать ID напрямую в UI
+        val index = tripHistory.indexOf(recordStr)
+        if (index != -1) {
+            val record = tripRecords[index]
+            repository.deleteTripRecordById(record.id)
+            loadHistory()
+        }
+    }
+
+    fun deleteHistoryItemById(id: String) {
+        repository.deleteTripRecordById(id)
         loadHistory()
+    }
+
+    fun updateHistoryItem(updatedRecord: TripRecord) {
+        val obj = org.json.JSONObject().apply {
+            put("id", updatedRecord.id)
+            put("date", updatedRecord.date)
+            put("startTime", updatedRecord.startTime)
+            put("endTime", updatedRecord.endTime)
+            put("distance", updatedRecord.distance)
+            put("totalKm", updatedRecord.totalKm)
+            put("remainingFuel", updatedRecord.remainingFuel)
+            put("cityDistance", updatedRecord.cityDistance)
+            put("intercityDistance", updatedRecord.intercityDistance)
+            put("equipmentFuel", updatedRecord.equipmentFuel)
+            put("equipmentDetails", updatedRecord.equipmentDetails)
+        }
+        repository.updateTripRecord(obj.toString())
+        loadHistory()
+    }
+
+    fun toggleEquipment(id: Int, checked: Boolean) {
+        when(id) {
+            1 -> equip1.value = checked
+            2 -> equip2.value = checked
+            3 -> equip3.value = checked
+        }
+        repository.saveEquipment(id, checked)
+        updateCalculations()
+    }
+
+    fun toggleWarmup(checked: Boolean) {
+        isWarmup.value = checked
+        repository.saveWarmup(checked)
+        updateCalculations()
     }
 
     fun clearHistory() {
@@ -252,14 +357,48 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
      * Вычисляет остаток топлива на основе пройденного расстояния и нормы расхода.
      */
     private fun calculateRemainingFuel(traveledKm: Float, fuelStd: Float): Float {
-        if (fuelStd <= 0) return baseFuel
-        
-        val totalFactor = getConsumptionFactor()
-        
         // Расход в движении (л/100км)
-        val fuelConsumedMoving = (traveledKm * (fuelStd * totalFactor)) / FUEL_CONSUMPTION_BASE_DISTANCE
+        val fuelConsumedMoving = if (fuelStd > 0) {
+            val totalFactor = getConsumptionFactor()
+            (traveledKm * (fuelStd * totalFactor)) / FUEL_CONSUMPTION_BASE_DISTANCE
+        } else 0f
         
-        return (baseFuel - fuelConsumedMoving).coerceAtLeast(0f)
+        // Доп. расход от оборудования
+        val equipmentFuel = getEquipmentConsumption()
+        
+        return (baseFuel - fuelConsumedMoving - equipmentFuel).coerceAtLeast(0f)
+    }
+
+    private fun getEquipmentConsumption(): Float {
+        var total = 0f
+        if (equip1.value) total += 9f
+        if (equip2.value) total += 9f
+        if (equip3.value) total += 9f
+        if (isWarmup.value) total += 4.5f
+        return total
+    }
+
+    private fun getEquipmentDetails(): String {
+        val details = mutableListOf<String>()
+        var hours = 0
+        if (equip1.value) hours++
+        if (equip2.value) hours++
+        if (equip3.value) hours++
+        
+        if (hours > 0) {
+            val label = if (isRussian.value) {
+                if (hours == 1) "1 час спец." else "$hours часа спец."
+            } else {
+                if (hours == 1) "1h equip." else "$hours h equip."
+            }
+            details.add("${hours * 9}л $label")
+        }
+        
+        if (isWarmup.value) {
+            details.add(if (isRussian.value) "4.5л прогрев" else "4.5L warmup")
+        }
+        
+        return details.joinToString("; ")
     }
 
     /**
@@ -361,6 +500,8 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         repository.saveTripStarted(true)
         totalDistance.floatValue = 0f
         repository.saveTotalDistance(0f)
+        repository.saveCityDistance(0f)
+        repository.saveIntercityDistance(0f)
         repository.saveMaxSpeed("0")
         
         repository.saveStartTime(System.currentTimeMillis())
@@ -381,6 +522,10 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     fun onStopTrip() {
         val currentTripDist = totalDistance.floatValue
         val traveledKm = currentTripDist / METERS_PER_KM
+        
+        val cityDistKm = repository.getCityDistance() / METERS_PER_KM
+        val intercityDistKm = repository.getIntercityDistance() / METERS_PER_KM
+        
         val fuelStd = fields.find { it.id == ID_FUEL_STD }?.value?.toFloatOrNull() ?: 0f
 
         val finalKm = baseKm + traveledKm
@@ -395,6 +540,8 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
         val dateStr = dateFormat.format(Date(endTimeMillis))
         val startStr = if (startTimeMillis > 0) timeFormat.format(Date(startTimeMillis)) else "--:--"
         val endStr = timeFormat.format(Date(endTimeMillis))
+        val equipmentFuelVal = getEquipmentConsumption()
+        val equipmentDetailsVal = getEquipmentDetails()
 
         val tripRecord = TripRecord(
             date = dateStr,
@@ -402,23 +549,36 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
             endTime = endStr,
             distance = String.format(Locale.US, "%.2f", traveledKm),
             totalKm = String.format(Locale.US, "%.2f", finalKm),
-            remainingFuel = String.format(Locale.US, "%.2f", remainingFuel)
+            remainingFuel = String.format(Locale.US, "%.2f", remainingFuel),
+            cityDistance = String.format(Locale.US, "%.2f", cityDistKm),
+            intercityDistance = String.format(Locale.US, "%.2f", intercityDistKm),
+            equipmentFuel = String.format(Locale.US, "%.2f", equipmentFuelVal),
+            equipmentDetails = equipmentDetailsVal
         )
 
-        val record = if (isRussian.value) {
-            String.format(Locale.US, "%s | %s-%s | Путь: %s км | Общий: %s км | Топливо: %s л",
-                tripRecord.date, tripRecord.startTime, tripRecord.endTime, tripRecord.distance, tripRecord.totalKm, tripRecord.remainingFuel)
-        } else {
-            String.format(Locale.US, "%s | %s-%s | Trip: %s km | Total: %s km | Fuel: %s L",
-                tripRecord.date, tripRecord.startTime, tripRecord.endTime, tripRecord.distance, tripRecord.totalKm, tripRecord.remainingFuel)
+        val obj = org.json.JSONObject().apply {
+            put("id", tripRecord.id)
+            put("date", tripRecord.date)
+            put("startTime", tripRecord.startTime)
+            put("endTime", tripRecord.endTime)
+            put("distance", tripRecord.distance)
+            put("totalKm", tripRecord.totalKm)
+            put("remainingFuel", tripRecord.remainingFuel)
+            put("cityDistance", tripRecord.cityDistance)
+            put("intercityDistance", tripRecord.intercityDistance)
+            put("equipmentFuel", tripRecord.equipmentFuel)
+            put("equipmentDetails", tripRecord.equipmentDetails)
         }
-        repository.saveTripRecord(record)
+
+        repository.saveTripRecord(obj.toString())
         loadHistory()
 
         repository.saveFieldValue(ID_KM, finalKm)
         repository.saveFieldValue(ID_FUEL, remainingFuel)
         repository.saveStartTime(0L)
         repository.saveTripStarted(false)
+        repository.saveCityDistance(0f)
+        repository.saveIntercityDistance(0f)
 
         baseKm = finalKm
         baseFuel = remainingFuel

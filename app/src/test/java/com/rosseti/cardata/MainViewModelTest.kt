@@ -101,12 +101,16 @@ class MainViewModelTest {
     }
 
     @Test
-    fun `onStopTrip saves trip record to history`() {
+    fun `onStopTrip saves trip record to history as JSON`() {
         `when`(repository.getFieldValue("km")).thenReturn(100f)
         `when`(repository.getFieldValue("fuel")).thenReturn(50f)
         `when`(repository.getFieldValue("fuelStandart")).thenReturn(10f)
         `when`(repository.getStartTime()).thenReturn(System.currentTimeMillis() - 3600000) // 1 hour ago
         `when`(repository.getIsRussian()).thenReturn(true)
+        `when`(repository.getCityDistance()).thenReturn(40000f) // 40 km city
+        `when`(repository.getIntercityDistance()).thenReturn(60000f) // 60 km intercity
+        `when`(repository.getEquipment(any())).thenReturn(false)
+        `when`(repository.getWarmup()).thenReturn(false)
         
         viewModel = MainViewModel(repository)
         viewModel.onStartTrip()
@@ -120,6 +124,8 @@ class MainViewModelTest {
         verify(repository).saveTripRecord(any())
         verify(repository).saveTripStarted(false)
         verify(repository, times(2)).saveTotalDistance(0f)
+        verify(repository).saveCityDistance(0f)
+        verify(repository).saveIntercityDistance(0f)
     }
 
     @Test
@@ -205,16 +211,35 @@ class MainViewModelTest {
     }
 
     @Test
-    fun `loadHistory parses and reverses history correctly`() {
-        val history = "Record 1\nRecord 2\nRecord 3"
-        `when`(repository.getTripHistory()).thenReturn(history)
+    fun `loadHistory parses JSON history correctly`() {
+        val historyJson = """[
+            {"id":"1","date":"01.01.2026","startTime":"10:00","endTime":"11:00","distance":"10.00","totalKm":"110.00","remainingFuel":"40.00","cityDistance":"5.00","intercityDistance":"5.00","equipmentFuel":"0.00","equipmentDetails":""}
+        ]"""
+        `when`(repository.getTripHistoryJson()).thenReturn(historyJson)
         
         viewModel.loadHistory()
         
-        assertEquals(3, viewModel.tripHistory.size)
-        assertEquals("Record 3", viewModel.tripHistory[0])
-        assertEquals("Record 2", viewModel.tripHistory[1])
-        assertEquals("Record 1", viewModel.tripHistory[2])
+        assertEquals(1, viewModel.tripRecords.size)
+        assertEquals("10.00", viewModel.tripRecords[0].distance)
+        assertEquals("5.00", viewModel.tripRecords[0].cityDistance)
+    }
+
+    @Test
+    fun `equipment consumption calculation works correctly`() {
+        `when`(repository.getFieldValue("km")).thenReturn(0f)
+        `when`(repository.getFieldValue("fuel")).thenReturn(100f)
+        `when`(repository.getFieldValue("fuelStandart")).thenReturn(0f)
+        `when`(repository.getEquipment(1)).thenReturn(true) // +9L
+        `when`(repository.getWarmup()).thenReturn(true) // +4.5L
+        
+        viewModel = MainViewModel(repository)
+        
+        // Trigger calculation (0 km distance)
+        `when`(repository.getTotalDistance()).thenReturn(0f)
+        viewModel.refreshDistance()
+        
+        // 100 - 9 - 4.5 = 86.5
+        assertEquals("86.50", viewModel.fields[2].value)
     }
 
     @Test
